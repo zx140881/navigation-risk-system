@@ -1,0 +1,21 @@
+{
+  "description": "航段分段配置，slice索引基于channel_data中的边界点数组",
+  "segments": [
+    {"id": 1, "name": "南槽下1", "type": "channel", "channel": "south_channel_lower", "north_slice": [0, 5], "south_slice": [0, 5]},
+    {"id": 2, "name": "南槽下2", "type": "channel", "channel": "south_channel_lower", "north_slice": [4, 9], "south_slice": [4, 9]},
+    {"id": 3, "name": "南槽下3", "type": "channel", "channel": "south_channel_lower", "north_slice": [8, 12], "south_slice": [8, 12]},
+    {"id": 4, "name": "南槽下4", "type": "channel", "channel": "south_channel_lower", "north_slice": [11, 15], "south_slice": [11, 15]},
+    {"id": 5, "name": "南槽下5", "type": "channel", "channel": "south_channel_lower", "north_slice": [14, 18], "south_slice": [14, 18]},
+    {"id": 6, "name": "南槽下6", "type": "channel", "channel": "south_channel_lower", "north_slice": [17, 20], "south_slice": [17, 21]},
+    {"id": 7, "name": "南槽上1", "type": "channel", "channel": "south_channel_upper", "north_slice": [0, 6], "south_slice": [0, 6]},
+    {"id": 8, "name": "南槽上2", "type": "channel", "channel": "south_channel_upper", "north_slice": [5, 11], "south_slice": [5, 11]},
+    {"id": 9, "name": "南槽上3", "type": "channel", "channel": "south_channel_upper", "north_slice": [10, 16], "south_slice": [10, 16]},
+    {"id": 10, "name": "南槽上4", "type": "channel", "channel": "south_channel_upper", "north_slice": [15, 20], "south_slice": [15, 20]},
+    {"id": 11, "name": "南槽上5", "type": "channel", "channel": "south_channel_upper", "north_slice": [19, 24], "south_slice": [19, 24]},
+    {"id": 12, "name": "南支1", "type": "channel", "channel": "south_branch", "north_slice": [0, 5], "south_slice": [0, 5]},
+    {"id": 13, "name": "南支2", "type": "channel", "channel": "south_branch", "north_slice": [4, 8], "south_slice": [4, 9]},
+    {"id": 14, "name": "南支3", "type": "channel", "channel": "south_branch", "north_slice": [7, 10], "south_slice": [8, 12]},
+    {"id": 15, "name": "九段沙警戒区", "type": "warning", "channel": "jiuduansha_warning"},
+    {"id": 16, "name": "圆圆沙警戒区", "type": "warning", "channel": "yuanyuansha_warning"}
+  ]
+}
