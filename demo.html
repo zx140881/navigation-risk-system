@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="多系统融合的航道水域航行动态智能风险评估系统——面向重大水工工程施工水域的应用">
+<title>多系统融合的航道水域航行动态智能风险评估系统——面向重大水工工程施工水域的应用</title>
+<!-- C2: 配置文件（API Key 外置） -->
+<script src="config.js"></script>
+<!-- E4: CDN 资源加 defer 避免阻塞渲染 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous" defer></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+/* C8: Design Tokens — 设计令牌集中管理 */
+:root {
+  /* 暗色主题（默认） */
+  --c-bg-base: #060e1a;
+  --c-bg-deep: #0a1628;
+  --c-bg-mid: #0d1e35;
+  --c-bg-panel: rgba(10, 22, 40, 0.75);
+  --c-bg-panel-solid: rgba(8, 18, 38, 0.9);
+  --c-bg-card: rgba(15, 35, 65, 0.5);
+  --c-bg-hover: rgba(0, 180, 255, 0.08);
+
+  --c-text-primary: #dfe8f2;
+  --c-text-secondary: #c0d8f0;
+  --c-text-muted: #7aa8cc;
+  --c-text-dim: #5a7a9a;
+
+  --c-accent: #00d4ff;
+  --c-accent-soft: #00bbff;
+  --c-accent-deep: #0088dd;
+  --c-accent-glow: rgba(0, 180, 255, 0.25);
+
+  --c-risk-high: #ff4444;
+  --c-risk-medium: #ffaa00;
+  --c-risk-low: #44ff44;
+  --c-risk-warning: #ff7700;
+
+  --c-border: rgba(30, 74, 110, 0.4);
+  --c-border-soft: rgba(30, 74, 110, 0.3);
+  --c-border-faint: rgba(30, 74, 110, 0.25);
+
+  --header-h: 56px;
+  --stats-h: 52px;
+  --footer-h: 34px;
+  --left-w: 280px;
+  --right-w: 300px;
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* E2: 明色主题 */
+:root[data-theme="light"] {
+  --c-bg-base: #eef2f7;
+  --c-bg-deep: #e2e8f0;
+  --c-bg-mid: #d5dde8;
+  --c-bg-panel: rgba(255, 255, 255, 0.85);
+  --c-bg-panel-solid: rgba(248, 250, 252, 0.95);
+  --c-bg-card: rgba(241, 245, 249, 0.6);
+  --c-bg-hover: rgba(0, 136, 221, 0.06);
+
+  --c-text-primary: #1a2332;
+  --c-text-secondary: #334155;
+  --c-text-muted: #64748b;
+  --c-text-dim: #94a3b8;
+
+  --c-accent: #0088dd;
+  --c-accent-soft: #0099e6;
+  --c-accent-deep: #0066aa;
+  --c-accent-glow: rgba(0, 136, 221, 0.15);
+
+  --c-risk-high: #dc2626;
+  --c-risk-medium: #d97706;
+  --c-risk-low: #16a34a;
+  --c-risk-warning: #ea580c;
+
+  --c-border: rgba(148, 163, 184, 0.4);
+  --c-border-soft: rgba(148, 163, 184, 0.3);
+  --c-border-faint: rgba(148, 163, 184, 0.2);
+}
+
+/* E3: 无障碍 — 焦点样式 */
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+/* E3: 无障碍 — 屏幕阅读器专用 */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: linear-gradient(160deg, var(--c-bg-base) 0%, var(--c-bg-deep) 35%, var(--c-bg-mid) 65%, var(--c-bg-base) 100%);
+  color: var(--c-text-primary);
+  overflow: hidden;
+  height: 100vh;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* E5: 加载骨架屏 */
+#app-loading {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  flex-direction: column; gap: 20px;
+  background: var(--c-bg-base);
+  transition: opacity 0.5s ease;
+}
+#app-loading.hidden { opacity: 0; pointer-events: none; }
+.loading-spinner {
+  width: 48px; height: 48px;
+  border: 3px solid var(--c-border);
+  border-top-color: var(--c-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { color: var(--c-text-muted); font-size: 14px; letter-spacing: 1px; }
+
+/* E2: 主题切换按钮 */
+.theme-toggle {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 32px; border: 1px solid var(--c-border);
+  background: var(--c-bg-card); color: var(--c-accent);
+  border-radius: 8px; cursor: pointer; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  transition: var(--transition); z-index: 1001;
+}
+.theme-toggle:hover {
+  background: var(--c-bg-hover);
+  box-shadow: 0 0 12px var(--c-accent-glow);
+}
+
+.header {
+  height: var(--header-h);
+  background: linear-gradient(90deg, var(--c-bg-deep) 0%, var(--c-bg-mid) 60%, var(--c-bg-deep) 100%);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 1000; border-bottom: none;
+}
+.header::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--c-accent-glow) 15%, var(--c-accent) 50%, var(--c-accent-glow) 85%, transparent 100%);
+  box-shadow: 0 0 12px var(--c-accent-glow);
+}
+.header h1 {
+  font-size: 16px; font-weight: 700; color: var(--c-accent);
+  letter-spacing: 3px;
+  text-shadow: 0 0 12px var(--c-accent-glow);
+}
+.header .badge {
+  position: absolute; right: 20px;
+  background: var(--c-bg-hover); color: var(--c-accent-soft);
+  padding: 4px 14px; border-radius: 12px;
+  font-size: 11px; font-weight: 600;
+  border: 1px solid var(--c-border);
+  backdrop-filter: blur(4px); letter-spacing: 1px;
+}
+
+/* [优化] 新增统计概览栏(stats-bar): 在 header 和 main 之间显示总船舶数、高风险数、施工船数、平均风险值 */
+.stats-bar {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  height: var(--stats-h);
+  background: var(--c-bg-panel-solid);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--c-border);
+  position: relative; z-index: 999; padding: 0 20px;
+  flex-wrap: wrap;
+}
+.stats-bar::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--c-accent-glow) 50%, transparent 100%);
+}
+.stat-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 16px;
+  background: var(--c-bg-card);
+  border: 1px solid var(--c-border-soft);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  transition: var(--transition); min-width: 130px;
+}
+.stat-card:hover {
+  background: var(--c-bg-hover);
+  border-color: var(--c-accent-glow);
+  box-shadow: 0 0 12px var(--c-accent-glow);
+  transform: translateY(-1px);
+}
+.stat-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.stat-icon.ships { background: rgba(0,180,255,0.12); color: var(--c-accent-soft); }
+.stat-icon.high-risk { background: rgba(255,68,68,0.12); color: var(--c-risk-high); }
+.stat-icon.construction { background: rgba(255,170,0,0.12); color: var(--c-risk-medium); }
+.stat-icon.avg-risk { background: rgba(68,255,68,0.12); color: var(--c-risk-low); }
+.stat-info { display: flex; flex-direction: column; }
+.stat-number { font-size: 16px; font-weight: 700; color: var(--c-text-secondary); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat-label { font-size: 10px; color: var(--c-text-dim); letter-spacing: 0.5px; }
+
+/* C14: 使用 CSS 变量替代魔法数字 */
+.main { display: flex; height: calc(100vh - var(--header-h) - var(--stats-h) - var(--footer-h)); }
+
+.left-panel, .right-panel {
+  transition: width var(--transition);
+  overflow: hidden; display: flex; flex-direction: column;
+  background: var(--c-bg-panel);
+  backdrop-filter: blur(16px);
+}
+.left-panel { width: var(--left-w); border-right: 1px solid var(--c-border-soft); box-shadow: 4px 0 20px rgba(0,0,0,0.2); }
+.left-panel.collapsed { width: 40px; }
+.right-panel { width: var(--right-w); border-left: 1px solid var(--c-border-soft); box-shadow: -4px 0 20px rgba(0,0,0,0.2); }
+.right-panel.collapsed { width: 40px; }
+
+.panel-title {
+  padding: 14px 18px; font-size: 13px; font-weight: 700; color: var(--c-accent);
+  border-bottom: 1px solid var(--c-border-soft);
+  background: var(--c-bg-hover);
+  display: flex; align-items: center; gap: 10px;
+  min-width: var(--left-w); white-space: nowrap; position: relative;
+}
+.panel-title::before {
+  content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--c-accent-soft), var(--c-accent-deep));
+  box-shadow: 0 0 8px var(--c-accent-glow);
+}
+.right-panel .panel-title { min-width: var(--right-w); }
+.panel-toggle {
+  width: 26px; height: 26px; border: 1px solid var(--c-border);
+  background: var(--c-bg-hover); color: var(--c-text-muted); border-radius: 6px;
+  cursor: pointer; font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+  transition: var(--transition); flex-shrink: 0;
+}
+.panel-toggle:hover {
+  background: linear-gradient(135deg, var(--c-accent-soft), var(--c-accent-deep));
+  color: #fff; border-color: var(--c-accent-soft);
+  box-shadow: 0 0 12px var(--c-accent-glow);
+}
+
+.left-panel.collapsed .panel-title,
+.right-panel.collapsed .panel-title {
+  min-width: 40px; width: 40px; padding: 12px 0;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  justify-content: center; border-bottom: none;
+  border-right: 1px solid rgba(30,74,110,0.3);
+}
+.right-panel.collapsed .panel-title { border-right: none; border-left: 1px solid rgba(30,74,110,0.3); }
+.left-panel.collapsed .panel-title .panel-toggle,
+.right-panel.collapsed .panel-title .panel-toggle {
+  writing-mode: horizontal-tb; position: absolute; display: none;
+}
+.left-panel.collapsed .filter-bar,
+.left-panel.collapsed .ship-list,
+.right-panel.collapsed .risk-list,
+.right-panel.collapsed .env-panel { display: none; }
+
+.filter-bar {
+  padding: 12px 18px; display: flex; gap: 8px;
+  border-bottom: 1px solid rgba(30,74,110,0.25); flex-wrap: wrap;
+}
+.filter-btn {
+  padding: 6px 14px; border: 1px solid rgba(42,106,158,0.4);
+  background: rgba(0,180,255,0.04); color: #7aa8cc;
+  border-radius: 8px; font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: all 0.25s ease;
+}
+.filter-btn:hover { background: rgba(0,180,255,0.1); border-color: rgba(0,180,255,0.3); color: #a0d4f8; }
+.filter-btn.active {
+  background: linear-gradient(135deg, #00bbff, #0088cc);
+  color: #fff; border-color: #00aaee;
+  box-shadow: 0 2px 10px rgba(0,180,255,0.3);
+}
+
+.ship-list { flex: 1; overflow-y: auto; padding: 6px 10px; }
+.ship-item {
+  padding: 10px 12px; margin: 2px 0; border-radius: 10px;
+  cursor: pointer; display: flex; align-items: center; gap: 10px;
+  font-size: 12px; transition: all 0.25s ease;
+  border-left: 3px solid transparent; background: transparent;
+}
+.ship-item:hover { background: rgba(0,180,255,0.06); border-left-color: rgba(0,180,255,0.3); }
+.ship-item.selected {
+  background: rgba(0,180,255,0.1); border-left-color: #00bbff;
+  box-shadow: inset 0 0 20px rgba(0,180,255,0.05);
+}
+.ship-item + .ship-item { border-top: 1px solid rgba(30,74,110,0.12); margin-top: 0; }
+.ship-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; transition: box-shadow 0.3s; }
+.ship-dot.high {
+/* [优化] 高风险船舶圆点使用 radial-gradient + 多层 box-shadow + pulseGlowHigh 动画，形成呼吸闪烁效果 */
+  background: radial-gradient(circle, #ff6666, #ff3333);
+  box-shadow: 0 0 8px rgba(255,68,68,0.6), 0 0 16px rgba(255,68,68,0.2);
+  animation: pulseGlowHigh 2s ease-in-out infinite;
+}
+.ship-dot.medium {
+  background: radial-gradient(circle, #ffcc44, #ffaa00);
+  box-shadow: 0 0 8px rgba(255,170,0,0.5), 0 0 16px rgba(255,170,0,0.15);
+  animation: pulseGlowMed 2.5s ease-in-out infinite;
+}
+.ship-dot.low { background: radial-gradient(circle, #66ff66, #33cc33); box-shadow: 0 0 6px rgba(68,255,68,0.4); }
+.ship-name { flex: 1; color: #c0d8f0; font-weight: 500; }
+.ship-type { font-size: 10px; color: #5a7a9a; margin-top: 1px; }
+.ship-risk-tag {
+  font-size: 10px; padding: 3px 10px; border-radius: 20px;
+  font-weight: 600; letter-spacing: 0.5px;
+}
+.ship-risk-tag.high {
+  background: rgba(255,68,68,0.15); color: #ff6666;
+  border: 1px solid rgba(255,68,68,0.3);
+  box-shadow: 0 0 8px rgba(255,68,68,0.15);
+}
+.ship-risk-tag.medium { background: rgba(255,170,0,0.15); color: #ffcc44; border: 1px solid rgba(255,170,0,0.3); }
+.ship-risk-tag.low { background: rgba(68,255,68,0.12); color: #66ff88; border: 1px solid rgba(68,255,68,0.25); }
+.ship-detail-row { font-size: 10px; color: #5a7a9a; margin-top: 3px; }
+.ship-detail-row span { margin-right: 10px; background: rgba(20,40,65,0.5); padding: 1px 6px; border-radius: 4px; }
+
+.map-container { flex: 1; position: relative; }
+#map { width: 100%; height: 100%; }
+.risk-list { flex: 1; overflow-y: auto; padding: 8px 12px; }
+.risk-item {
+  padding: 14px 16px; margin: 5px 0; border-radius: 12px;
+  cursor: pointer; transition: all 0.3s ease;
+  border-left: 3px solid transparent;
+  background: rgba(10,20,38,0.4);
+  animation: riskFadeIn 0.4s ease both;
+/* [优化] 风险项添加 slideIn 入场动画(riskFadeIn)，列表加载时从右侧滑入 */
+}
+@keyframes riskFadeIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+.risk-item:hover { background: rgba(0,180,255,0.06); border-left-color: rgba(0,180,255,0.3); transform: translateX(2px); }
+.risk-item.selected {
+  background: rgba(0,180,255,0.1); border-left-color: #00bbff;
+  box-shadow: inset 0 0 20px rgba(0,180,255,0.05), 0 0 15px rgba(0,180,255,0.08);
+}
+/* === 航段标题行 === */
+/* [优化] 航段详情面板重构: 使用 flex 布局的 header/stats-row/predict/encounter 四层结构，信息层级更清晰 */
+.risk-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.risk-header-left { display: flex; align-items: center; gap: 8px; }
+.risk-seg-index {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px; font-size: 10px; font-weight: 700;
+  background: rgba(0,180,255,0.1); color: #00bbff; border: 1px solid rgba(0,180,255,0.2);
+  flex-shrink: 0;
+}
+.risk-name { font-size: 13px; font-weight: 600; color: #c0d8f0; }
+.risk-header-right { display: flex; align-items: center; gap: 8px; }
+.risk-score-big {
+/* [优化] 风险数值使用 18px/800 超大加粗字体，配合颜色和 text-shadow 发光，一眼识别风险等级 */
+  font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums;
+  line-height: 1; letter-spacing: -0.5px;
+}
+.risk-score-big.high { color: #ff4444; text-shadow: 0 0 12px rgba(255,68,68,0.4); }
+.risk-score-big.medium { color: #ffaa00; text-shadow: 0 0 10px rgba(255,170,0,0.3); }
+.risk-score-big.low { color: #44ff44; text-shadow: 0 0 8px rgba(68,255,68,0.3); }
+.risk-score-big.warning { color: #ff7700; text-shadow: 0 0 10px rgba(255,100,0,0.3); }
+.risk-badge {
+/* [优化] 风险等级标签使用圆角药丸样式(20px border-radius)，配合发光效果增强辨识度 */
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+}
+.risk-badge.high { background: rgba(255,68,68,0.15); color: #ff5555; border: 1px solid rgba(255,68,68,0.35); box-shadow: 0 0 10px rgba(255,68,68,0.2); }
+.risk-badge.medium { background: rgba(255,170,0,0.12); color: #ffaa00; border: 1px solid rgba(255,170,0,0.3); }
+.risk-badge.low { background: rgba(68,255,68,0.12); color: #44ff44; border: 1px solid rgba(68,255,68,0.25); }
+.risk-badge.warning { background: rgba(255,100,0,0.12); color: #ff7700; border: 1px solid rgba(255,100,0,0.3); box-shadow: 0 0 8px rgba(255,100,0,0.15); }
+/* === 风险进度条 === */
+/* [优化] 新增风险进度条: 6px 圆角条形图，渐变色+发光效果直观展示风险百分比 */
+.risk-progress { width: 100%; height: 6px; background: rgba(30,60,90,0.4); border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+.risk-progress-bar { height: 100%; border-radius: 6px; transition: width 0.6s cubic-bezier(0.4,0,0.2,1); }
+.risk-progress-bar.high { background: linear-gradient(90deg, #cc2222, #ff4444, #ff6666); box-shadow: 0 0 10px rgba(255,68,68,0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+.risk-progress-bar.medium { background: linear-gradient(90deg, #cc8800, #ffaa00, #ffcc44); box-shadow: 0 0 8px rgba(255,170,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15); }
+.risk-progress-bar.low { background: linear-gradient(90deg, #22aa22, #44ff44, #66ff66); box-shadow: 0 0 8px rgba(68,255,68,0.3), inset 0 1px 0 rgba(255,255,255,0.1); }
+.risk-progress-bar.warning { background: linear-gradient(90deg, #cc5500, #ff7700, #ff9944); box-shadow: 0 0 8px rgba(255,100,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15); }
+/* === 船舶统计三列卡片 === */
+/* [优化] 新增航段内船舶统计三列卡片(施工船/通航船/高风险)，快速了解航段船舶构成 */
+.risk-stats-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.risk-stat-card {
+  flex: 1; padding: 6px 4px; border-radius: 8px; text-align: center;
+  background: rgba(15,30,50,0.6); border: 1px solid rgba(30,60,90,0.3);
+  transition: background 0.2s;
+}
+.risk-item:hover .risk-stat-card { background: rgba(20,40,65,0.6); }
+.risk-stat-num { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.risk-stat-num.const-num { color: #ff9944; }
+.risk-stat-num.cargo-num { color: #44bbff; }
+.risk-stat-num.high-num { color: #ff5555; }
+.risk-stat-label { font-size: 9px; color: #4a6a88; margin-top: 2px; }
+/* === 预测区域 === */
+.risk-predict {
+  margin-top: 8px; padding: 8px 10px; border-radius: 8px;
+  background: rgba(0,40,70,0.3); border: 1px solid rgba(30,74,110,0.25);
+}
+.risk-predict-row { display: flex; justify-content: space-between; align-items: center; }
+.risk-predict-label { font-size: 10px; color: #5a8aaa; font-weight: 600; }
+.risk-predict-arrow { color: #3a6a8a; font-size: 10px; margin-right: 6px; }
+.risk-predict-value { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* === 会遇预警横条 === */
+/* [优化] 新增会遇预警横条: 半透明橙色/红色背景+脉冲动画，醒目提示船舶会遇风险 */
+.risk-encounter {
+  margin-top: 6px; padding: 6px 10px; border-radius: 6px;
+  background: rgba(255,170,0,0.08); border: 1px solid rgba(255,170,0,0.2);
+  font-size: 10px; color: #ffcc44; display: flex; align-items: center; gap: 6px;
+}
+.risk-encounter.high-encounter {
+  background: rgba(255,68,68,0.1); border-color: rgba(255,68,68,0.25); color: #ff6666;
+  animation: encounterPulse 2s ease-in-out infinite;
+}
+@keyframes encounterPulse { 0%,100% { border-color: rgba(255,68,68,0.25); } 50% { border-color: rgba(255,68,68,0.5); } }
+.risk-encounter-icon { font-size: 12px; flex-shrink: 0; }
+.risk-encounter-text { flex: 1; }
+.risk-moved-info { margin-top: 4px; font-size: 10px; color: #ffaa00; padding-left: 4px; }
+.risk-detail { display: none; }
+
+.env-panel {
+  padding: 14px 18px;
+  border-top: 1px solid rgba(30,74,110,0.3);
+  background: rgba(0,180,255,0.02);
+}
+.env-row { display: flex; justify-content: space-between; align-items: center; font-size: 11px; padding: 5px 0; }
+.env-row + .env-row { border-top: 1px solid rgba(30,74,110,0.12); margin-top: 0; padding-top: 8px; }
+.env-label { color: #5a7a9a; }
+.env-value { color: #c0d8f0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.view-toggle { position: absolute; top: 12px; right: 12px; z-index: 1000; display: flex; gap: 6px; }
+.view-btn {
+  padding: 8px 18px; border: 1px solid rgba(42,106,158,0.4);
+  background: rgba(10,22,40,0.85); backdrop-filter: blur(12px);
+  color: #7aa8cc; border-radius: 10px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.25s ease;
+}
+.view-btn:hover { background: rgba(0,180,255,0.1); border-color: rgba(0,180,255,0.3); }
+.view-btn.active {
+  background: linear-gradient(135deg, #00bbff, #0088cc);
+  color: #fff; border-color: #00aaee;
+  box-shadow: 0 2px 12px rgba(0,180,255,0.35);
+}
+
+.map-layer-switch {
+  position: absolute; top: 56px; right: 12px; z-index: 1000;
+  display: flex; gap: 4px;
+  background: rgba(10,22,40,0.88); backdrop-filter: blur(12px);
+  border: 1px solid rgba(30,74,110,0.4);
+  border-radius: 10px; padding: 4px;
+}
+.map-layer-btn {
+  padding: 6px 14px; border: 1px solid rgba(42,106,158,0.3);
+  background: transparent; color: #7aa8cc; border-radius: 7px;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+  transition: all 0.25s ease; white-space: nowrap;
+}
+.map-layer-btn:hover { background: rgba(0,180,255,0.08); border-color: rgba(0,180,255,0.25); }
+.map-layer-btn.active {
+  background: linear-gradient(135deg, #00bbff, #0088cc);
+  color: #fff; border-color: #00aaee;
+  box-shadow: 0 2px 8px rgba(0,180,255,0.3);
+}
+
+.footer {
+  height: 34px; background: rgba(8,18,38,0.9);
+  backdrop-filter: blur(12px); border-top: none;
+  display: flex; align-items: center; padding: 0 18px;
+  font-size: 11px; color: #4a6a88; gap: 20px; position: relative;
+}
+/* [优化] 底部状态栏顶部添加渐变光线装饰(与header呼应) */
+.footer::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,180,255,0.12) 20%, rgba(0,180,255,0.3) 50%, rgba(0,180,255,0.12) 80%, transparent 100%);
+  box-shadow: 0 -2px 10px rgba(0,180,255,0.08);
+}
+.footer .status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: radial-gradient(circle, #66ff66, #22cc22);
+  display: inline-block; margin-right: 5px;
+  box-shadow: 0 0 6px rgba(68,255,68,0.5), 0 0 14px rgba(68,255,68,0.2);
+  animation: pulseStatus 2s ease-in-out infinite;
+}
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes pulseGlowHigh {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,68,68,0.6), 0 0 16px rgba(255,68,68,0.2); }
+  50% { box-shadow: 0 0 12px rgba(255,68,68,0.8), 0 0 24px rgba(255,68,68,0.35); }
+}
+@keyframes pulseGlowMed {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,170,0,0.5), 0 0 16px rgba(255,170,0,0.15); }
+  50% { box-shadow: 0 0 12px rgba(255,170,0,0.7), 0 0 22px rgba(255,170,0,0.3); }
+}
+@keyframes pulseStatus {
+  0%, 100% { box-shadow: 0 0 6px rgba(68,255,68,0.5), 0 0 14px rgba(68,255,68,0.2); }
+  50% { box-shadow: 0 0 10px rgba(68,255,68,0.7), 0 0 22px rgba(68,255,68,0.35); }
+}
+@keyframes fadeInUp {
+/* [优化] 船舶列表项添加 fadeInUp 入场动画(0.3s)，列表加载时从下方淡入 */
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ship-item { animation: fadeInUp 0.3s ease both; }
+/* [优化] 船舶列表项按序号递增动画延迟(每项 30ms)，形成依次滑入的波浪效果 */
+.ship-item:nth-child(1) { animation-delay: 0s; }
+.ship-item:nth-child(2) { animation-delay: 0.03s; }
+.ship-item:nth-child(3) { animation-delay: 0.06s; }
+.ship-item:nth-child(4) { animation-delay: 0.09s; }
+.ship-item:nth-child(5) { animation-delay: 0.12s; }
+.ship-item:nth-child(6) { animation-delay: 0.15s; }
+.ship-item:nth-child(7) { animation-delay: 0.18s; }
+.ship-item:nth-child(8) { animation-delay: 0.21s; }
+.ship-item:nth-child(9) { animation-delay: 0.24s; }
+.ship-item:nth-child(10) { animation-delay: 0.27s; }
+
+::-webkit-scrollbar { width: 6px; }
+/* [优化] 自定义滚动条: 6px 细窄条形+渐变色，融入暗色主题 */
+::-webkit-scrollbar-track { background: rgba(10,22,40,0.5); }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(30,74,110,0.7), rgba(20,50,80,0.7)); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(0,180,255,0.4), rgba(0,140,220,0.4)); }
+
+.leaflet-container { background: #060e1a !important; }
+/* [优化] 覆盖 Leaflet 默认样式: 容器背景改为深色、缩放按钮改为蓝色毛玻璃风格、隐藏版权信息 */
+.leaflet-control-zoom a {
+  background: rgba(10,22,40,0.9) !important; color: #00bbff !important;
+  border-color: rgba(30,74,110,0.4) !important;
+  backdrop-filter: blur(8px); transition: all 0.2s ease;
+}
+.leaflet-control-zoom a:hover { background: rgba(0,180,255,0.15) !important; box-shadow: 0 0 8px rgba(0,180,255,0.2); }
+.leaflet-control-attribution { font-size: 9px !important; background: var(--c-bg-panel-solid) !important; color: var(--c-text-dim) !important; }
+
+#channel3d-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 500; }
+#channel3d-container.active { display: block; }
+.threejs-info {
+  position: absolute; bottom: 14px; left: 14px; z-index: 1001;
+  background: rgba(10,22,40,0.9); backdrop-filter: blur(12px);
+  border: 1px solid rgba(30,74,110,0.4); border-radius: 12px;
+  padding: 12px 18px; font-size: 11px; color: #8ab4d8;
+  line-height: 1.7; pointer-events: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+.threejs-info .seg-name { color: #00d4ff; font-weight: 700; font-size: 14px; }
+.threejs-controls-hint {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 1001;
+  background: rgba(10,22,40,0.88); backdrop-filter: blur(10px);
+  border: 1px solid rgba(30,74,110,0.35); border-radius: 8px;
+  padding: 6px 16px; font-size: 11px; color: #6a8aa8;
+  pointer-events: none; opacity: 1; transition: opacity 2s;
+}
+.threejs-controls-hint.fade { opacity: 0; }
+
+.info-tooltip {
+/* [优化] Leaflet 提示框(info-tooltip)改为深色毛玻璃风格(圆角10px+发光边框)，与整体暗色主题统一 */
+  background: rgba(10,22,40,0.95) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0,180,255,0.25) !important;
+  color: #dfe8f2 !important; padding: 10px 14px !important;
+  border-radius: 10px !important; font-size: 12px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 0 20px rgba(0,180,255,0.1) !important;
+  line-height: 1.6 !important;
+}
+
+@keyframes riskBlink { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes risk-blink-poly { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.risk-blink-poly { animation: risk-blink-poly 1.5s ease-in-out infinite; }
+
+.legend {
+/* [优化] 图例面板: 可折叠设计(collapsed/expanded状态切换)，毛玻璃背景+蓝色标题 */
+  position: absolute; bottom: 14px; left: 14px; z-index: 1000;
+  background: rgba(10,22,40,0.9); backdrop-filter: blur(14px);
+  border: 1px solid rgba(30,74,110,0.4); border-radius: 12px;
+  font-size: 11px; line-height: 1.9;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+}
+.legend.expanded { padding: 12px 16px; }
+.legend.collapsed { padding: 8px 14px; }
+.legend-header {
+  display: flex; align-items: center; justify-content: space-between;
+  color: #00d4ff; font-weight: 700; font-size: 12px;
+  border-bottom: 1px solid rgba(30,74,110,0.3);
+  padding-bottom: 4px; margin-bottom: 6px;
+  cursor: pointer; user-select: none;
+}
+.legend.collapsed .legend-header { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.legend-toggle { font-size: 14px; color: #7aa8cc; transition: transform 0.3s ease; }
+.legend.collapsed .legend-toggle { transform: rotate(180deg); }
+.legend-body { overflow: hidden; transition: max-height 0.35s ease, opacity 0.3s ease; max-height: 500px; opacity: 1; }
+.legend.collapsed .legend-body { max-height: 0; opacity: 0; }
+.legend-row { display: flex; align-items: center; gap: 10px; }
+.legend-line { width: 24px; height: 0; flex-shrink: 0; }
+.legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ===== 3D视图 UI面板毛玻璃升级 ===== */
+.segment-3d-selector,
+.channel3d-overlay-panel,
+.detail-panel-3d {
+  background: rgba(10,22,40,0.75) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(0,180,255,0.2) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.4), 0 0 15px rgba(0,180,255,0.08) !important;
+}
+.detail-panel-3d .panel-title {
+  background: linear-gradient(90deg, rgba(0,180,255,0.1), transparent) !important;
+  border-bottom: 1px solid rgba(0,180,255,0.15) !important;
+}
+.detail-panel-3d .data-row {
+  border-bottom: 1px solid rgba(30,60,90,0.3) !important;
+}
+
+/* 船舶运动态势控制面板 */
+#ship-motion-panel {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  z-index: 1002;
+  width: 280px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: rgba(8, 20, 45, 0.92);
+  border: 1px solid rgba(0, 180, 255, 0.4);
+  border-radius: 12px;
+  padding: 16px;
+  color: #d0dce8;
+  font-size: 12px;
+  line-height: 1.6;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 25px rgba(0, 100, 200, 0.2), inset 0 0 30px rgba(0, 60, 120, 0.05);
+}
+#ship-motion-panel::-webkit-scrollbar { width: 4px; }
+#ship-motion-panel::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.3); border-radius: 2px; }
+#ship-motion-panel .panel-title {
+  color: #00d4ff;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0,180,255,0.2);
+  letter-spacing: 1px;
+}
+#ship-motion-panel .section-title {
+  color: #00bbee;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 12px 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#ship-motion-panel .section-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 12px;
+  background: #00d4ff;
+  border-radius: 2px;
+}
+#ship-motion-panel .input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 3px 0;
+}
+#ship-motion-panel .input-row label {
+  color: #7a9ab8;
+  font-size: 11px;
+  min-width: 40px;
+}
+#ship-motion-panel .input-row input[type="number"] {
+  width: 70px;
+  background: rgba(0, 40, 80, 0.6);
+  border: 1px solid rgba(0, 120, 200, 0.3);
+  border-radius: 4px;
+  color: #e0e8f0;
+  padding: 3px 6px;
+  font-size: 11px;
+  text-align: right;
+}
+#ship-motion-panel .input-row input[type="number"]:focus {
+  outline: none;
+  border-color: #00d4ff;
+  box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+}
+#ship-motion-panel .slider-row {
+  margin: 6px 0;
+}
+#ship-motion-panel .slider-row label {
+  color: #7a9ab8;
+  font-size: 11px;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+#ship-motion-panel .slider-row input[type="range"] {
+  width: 100%;
+  accent-color: #00d4ff;
+}
+#ship-motion-panel .info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin: 4px 0;
+}
+#ship-motion-panel .info-item {
+  display: flex;
+  justify-content: space-between;
+  background: rgba(0, 40, 80, 0.3);
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+#ship-motion-panel .info-item .info-label {
+  color: #5a7a9a;
+  font-size: 10px;
+}
+#ship-motion-panel .info-item .info-value {
+  color: #e0f0ff;
+  font-size: 11px;
+  font-weight: 600;
+}
+#ship-motion-panel .attitude-display {
+  display: flex;
+  gap: 10px;
+  margin: 6px 0;
+}
+#ship-motion-panel .attitude-card {
+  flex: 1;
+  text-align: center;
+  background: rgba(0, 60, 120, 0.2);
+  border: 1px solid rgba(0, 120, 200, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+}
+#ship-motion-panel .attitude-card .att-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #00d4ff;
+  font-family: 'Consolas', monospace;
+}
+#ship-motion-panel .attitude-card .att-label {
+  font-size: 10px;
+  color: #6a8aa8;
+  margin-top: 2px;
+}
+
+/* E1: 响应式设计 — 平板 */
+@media (max-width: 1024px) {
+  :root { --left-w: 220px; --right-w: 240px; }
+  .header h1 { font-size: 14px; letter-spacing: 2px; }
+  .header h1 sub { display: none; }
+  .stat-card { min-width: 110px; padding: 4px 12px; }
+  .stats-bar { gap: 10px; padding: 0 12px; }
+  #ship-motion-panel { width: 240px; }
+}
+
+/* E1: 响应式设计 — 手机（侧边栏变抽屉） */
+@media (max-width: 768px) {
+  .header h1 { font-size: 12px; letter-spacing: 1px; }
+  .header .badge { display: none; }
+  .stats-bar { height: auto; min-height: var(--stats-h); padding: 8px 12px; }
+  .stat-card { min-width: 0; flex: 1 1 calc(50% - 8px); }
+
+  .left-panel, .right-panel {
+    position: absolute; top: 0; bottom: 0; z-index: 2000;
+    height: 100%; transform: translateX(-100%);
+    transition: transform var(--transition);
+  }
+  .left-panel { left: 0; }
+  .right-panel { right: 0; transform: translateX(100%); }
+  .left-panel.open, .right-panel.open { transform: translateX(0); }
+  .left-panel.collapsed, .right-panel.collapsed { width: var(--left-w); }
+
+  .map-layer-switch { top: 50px; right: 8px; flex-wrap: wrap; max-width: 180px; }
+  .map-layer-btn { padding: 4px 10px; font-size: 10px; }
+  .view-toggle { top: 8px; right: 8px; }
+  .view-btn { padding: 6px 12px; font-size: 11px; }
+  .legend { font-size: 10px; bottom: 50px; left: 8px; max-width: 200px; }
+  #ship-motion-panel { width: calc(100vw - 24px); right: 12px; top: 100px; max-height: 60vh; }
+}
+
+/* E1: 响应式设计 — 超小屏 */
+@media (max-width: 480px) {
+  .header h1 { font-size: 11px; }
+  .stat-icon { width: 28px; height: 28px; font-size: 12px; }
+  .stat-number { font-size: 14px; }
+  .stat-label { font-size: 9px; }
+  .footer { font-size: 10px; padding: 0 10px; gap: 10px; }
+  .footer span:nth-child(3) { display: none; }
+}
+
+/* E6: 减弱 !important — 仅保留必要的 Leaflet 覆盖 */
+.leaflet-container { background: var(--c-bg-base) !important; }
+.leaflet-control-zoom a {
+  background: var(--c-bg-panel-solid) !important; color: var(--c-accent-soft) !important;
+  border-color: var(--c-border) !important;
+  backdrop-filter: blur(8px); transition: all 0.2s ease;
+}
+.leaflet-control-zoom a:hover { background: var(--c-bg-hover) !important; }
+
+/* C3: 预留 — prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* C7: 从内联样式迁移的类 */
+.segment-3d-selector {
+  position: absolute; top: 10px; left: 10px; z-index: 1001;
+  background: var(--c-bg-panel-solid); border: 1px solid var(--c-border);
+  border-radius: 12px; padding: 10px 12px;
+  max-height: 80%; overflow-y: auto; backdrop-filter: blur(12px);
+}
+.selector-title {
+  color: var(--c-accent); font-size: 12px; font-weight: 700;
+  margin-bottom: 8px; border-bottom: 1px solid var(--c-border-soft);
+  padding-bottom: 6px;
+}
+.selector-list { font-size: 11px; }
+.footer-btn {
+  background: var(--c-bg-hover); border: 1px solid var(--c-border);
+  color: var(--c-accent-soft); border-radius: 8px;
+  padding: 4px 12px; cursor: pointer;
+  font-size: 11px; font-weight: 600;
+  margin-right: 8px; transition: var(--transition);
+}
+.footer-btn:hover { background: var(--c-accent-glow); }
+
+</style>
+</head>
+<body>
+<!-- E5: 加载骨架屏 -->
+<div id="app-loading" role="status" aria-live="polite">
+  <div class="loading-spinner" aria-hidden="true"></div>
+  <div class="loading-text">系统加载中...</div>
+</div>
+<!-- 顶部标题栏 -->
+<header class="header" role="banner">
+  <button class="theme-toggle" id="themeToggle" aria-label="切换明暗主题" title="切换明暗主题">🌙</button>
+  <h1>多系统融合的航道水域航行动态智能风险评估系统<sub style="font-size:0.45em;opacity:0.65;font-weight:400;letter-spacing:0;">——面向重大水工工程施工水域的应用</sub></h1>
+  <div class="badge">DEMO v6.2</div>
+</header>
+<!-- 统计概览栏 -->
+<div class="stats-bar" id="statsBar" role="region" aria-label="统计概览">
+  <div class="stat-card">
+    <div class="stat-icon ships" aria-hidden="true">⚓</div>
+    <div class="stat-info">
+      <span class="stat-number" id="statTotalShips">--</span>
+      <span class="stat-label">总船舶数</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon high-risk" aria-hidden="true">⚠</div>
+    <div class="stat-info">
+      <span class="stat-number" id="statHighRisk">--</span>
+      <span class="stat-label">高风险船舶</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon construction" aria-hidden="true">⛏</div>
+    <div class="stat-info">
+      <span class="stat-number" id="statConstruction">--</span>
+      <span class="stat-label">施工船数</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon avg-risk" aria-hidden="true">📈</div>
+    <div class="stat-info">
+      <span class="stat-number" id="statAvgRisk">--</span>
+      <span class="stat-label">平均风险值</span>
+    </div>
+  </div>
+</div>
+<main class="main" role="main">
+  <aside class="left-panel" id="leftPanel" role="complementary" aria-label="船舶列表">
+    <div class="panel-title">
+      <span>船舶列表</span>
+      <button class="panel-toggle" data-action="toggle-panel" data-side="left" aria-label="收起/展开船舶列表" title="收起/展开">◀</button>
+    </div>
+    <div class="filter-bar" role="group" aria-label="船舶筛选">
+      <button class="filter-btn active" data-action="filter-ships" data-filter="all" aria-pressed="true">全部</button>
+      <button class="filter-btn" data-action="filter-ships" data-filter="construction" aria-pressed="false">施工船</button>
+      <button class="filter-btn" data-action="filter-ships" data-filter="cargo" aria-pressed="false">通航船</button>
+      <button class="filter-btn" data-action="filter-ships" data-filter="high" aria-pressed="false">高风险</button>
+    </div>
+    <div class="ship-list" id="shipList" role="list" aria-label="船舶列表"></div>
+  </aside>
+  <div class="map-container">
+    <div id="map" role="application" aria-label="航道水域地图"></div>
+    <div id="channel3d-container" aria-label="3D航道视图">
+      <div class="threejs-info" id="threejsInfo">
+        <div class="seg-name" id="threejsSegName">航道3D视图</div>
+        <div id="threejsSegDetail">点击右侧航段查看3D场景</div>
+      </div>
+      <div class="threejs-controls-hint" id="threejsHint">鼠标左键旋转 | 滚轮缩放 | 右键平移</div>
+      <div id="segment3d-selector" class="segment-3d-selector" style="display:none;">
+        <div class="selector-title">航段选择</div>
+        <div id="segment3d-list" class="selector-list"></div>
+      </div>
+    </div>
+    <div id="channel-panorama-container" style="position:absolute;top:0;left:0;width:100%;height:100%;display:none;z-index:500;"></div>
+    <div class="map-layer-switch" role="group" aria-label="底图切换">
+      <button class="map-layer-btn active" data-action="switch-map" data-map="amap" aria-pressed="true">高德地图</button>
+      <button class="map-layer-btn" data-action="switch-map" data-map="tianditu" aria-pressed="false">天地图</button>
+      <button class="map-layer-btn" data-action="switch-map" data-map="satellite" aria-pressed="false">遥感卫星</button>
+      <button class="map-layer-btn" data-action="switch-3d" aria-pressed="false">航道3D</button>
+    </div>
+    <div class="view-toggle" role="group" aria-label="视图切换">
+      <button class="view-btn active" id="btnCurrent" data-action="switch-view" data-view="current" aria-pressed="true">实时态势</button>
+      <button class="view-btn" id="btnPredict" data-action="switch-view" data-view="predict" aria-pressed="false">半小时后预测</button>
+    </div>
+    <div class="legend expanded" id="legend" role="region" aria-label="图例">
+      <div class="legend-header" data-action="toggle-legend" tabindex="0" role="button" aria-label="折叠/展开图例">
+        <span>图例</span>
+        <span class="legend-toggle" aria-hidden="true">▼</span>
+      </div>
+      <div class="legend-body">
+        <div class="legend-row"><div class="legend-line" style="border-top:2px solid #00ff88;"></div><span>北边界线</span></div>
+        <div class="legend-row"><div class="legend-line" style="border-top:2px solid #ff8800;"></div><span>南边界线</span></div>
+        <div class="legend-row"><div class="legend-line" style="border-top:2px dashed #ffff00;"></div><span>航道中线</span></div>
+        <div class="legend-row"><div class="legend-line" style="border-top:2px dashed #aa88ff;"></div><span>南支航道</span></div>
+        <div class="legend-row"><div class="legend-swatch" style="background:rgba(255,68,68,0.35);border:1px solid #ff4444;"></div><span>高风险航段</span></div>
+        <div class="legend-row"><div class="legend-swatch" style="background:rgba(255,170,0,0.35);border:1px solid #ffaa00;"></div><span>中风险航段</span></div>
+        <div class="legend-row"><div class="legend-swatch" style="background:rgba(68,255,68,0.25);border:1px solid #44ff44;"></div><span>低风险航段</span></div>
+        <div class="legend-row"><div class="legend-swatch" style="background:rgba(255,102,0,0.25);border:1px dashed #ff6600;"></div><span>警戒区</span></div>
+        <div class="legend-row"><div class="legend-dot" style="background:#00d4ff;"></div><span>航标</span></div>
+        <div class="legend-row"><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid #ff4444;filter:drop-shadow(0 0 2px #ff4444);"></div><span>施工船（三角+矢量线）</span></div>
+        <div class="legend-row"><div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:10px solid #66ccff;filter:drop-shadow(0 0 2px #66ccff);"></div><span>通航船（三角+矢量线）</span></div>
+        <div class="legend-row"><div style="width:2px;height:16px;background:#66ccff;opacity:0.8;"></div><span>航向矢量线</span></div>
+      </div>
+    </div>
+  </div>
+  <aside class="right-panel" id="rightPanel" role="complementary" aria-label="航段风险评估">
+    <div class="panel-title">
+      <span>航段风险评估</span>
+      <button class="panel-toggle" data-action="toggle-panel" data-side="right" aria-label="收起/展开风险评估面板" title="收起/展开">▶</button>
+    </div>
+    <div class="risk-list" id="riskList" role="list" aria-label="航段风险列表"></div>
+    <div class="env-panel" role="region" aria-label="环境信息">
+      <div class="env-row"><span class="env-label">风力</span><span class="env-value">4级 SE</span></div>
+      <div class="env-row"><span class="env-label">能见度</span><span class="env-value">3500m</span></div>
+      <div class="env-row"><span class="env-label">潮汐</span><span class="env-value">中浚高潮前1.5h</span></div>
+      <div class="env-row"><span class="env-label">流速</span><span class="env-value">1.2kn</span></div>
+    </div>
+  </aside>
+</main>
+<footer class="footer" role="contentinfo">
+  <span><span class="status-dot" aria-hidden="true"></span>系统运行中</span>
+  <span id="currentTime" aria-label="当前时间"></span>
+  <span>模拟数据 | 南槽航道治理二期工程</span>
+  <span style="margin-left:auto;">
+  <button id="refreshBtn" data-action="toggle-refresh" class="footer-btn" aria-label="暂停/继续自动刷新">⏸ 暂停</button>
+  <span id="refreshStatus" aria-label="刷新频率">刷新频率: 30s</span>
+</span>
+</footer>
+
+<script>
+// ===================================================================
+// C3: 事件委托 — 统一通过 data-action 绑定，消除内联 onclick
+// C6: 所有交互通过事件委托处理，HTML 与 JS 解耦
+// ===================================================================
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  switch (action) {
+    case 'toggle-panel': togglePanel(btn.dataset.side); break;
+    case 'filter-ships': filterShips(btn.dataset.filter, btn); break;
+    case 'switch-map': switchBaseMap(btn.dataset.map); break;
+    case 'switch-3d': switchTo3D(); break;
+    case 'switch-view': switchView(btn.dataset.view); break;
+    case 'toggle-legend': toggleLegend(); break;
+    case 'toggle-refresh': toggleAutoRefresh(); break;
+  }
+});
+// 图例支持键盘操作 (E3 无障碍)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target.closest('[data-action][role="button"]');
+  if (!el) return;
+  e.preventDefault();
+  el.click();
+});
+
+// ===================================================================
+// E2: 主题切换 (light / dark / system)
+// ===================================================================
+(function initTheme() {
+  const root = document.documentElement;
+  const saved = localStorage.getItem('theme') || 'dark';
+  root.setAttribute('data-theme', saved);
+  function updateToggleIcon() {
+    const t = root.getAttribute('data-theme');
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = t === 'dark' ? '🌙' : '☀️';
+  }
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#themeToggle')) {
+      const current = root.getAttribute('data-theme');
+      const next = current === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      updateToggleIcon();
+      // 通知 Leaflet 刷新底图配色
+      if (typeof map !== 'undefined' && map) setTimeout(() => map.invalidateSize(), 100);
+    }
+  });
+  updateToggleIcon();
+})();
+
+// ===================================================================
+// E5: 加载骨架屏控制
+// ===================================================================
+function hideLoadingScreen() {
+  const loading = document.getElementById('app-loading');
+  if (loading) {
+    loading.classList.add('hidden');
+    setTimeout(() => loading.remove(), 600);
+  }
+}
+
+// ===================================================================
+// 从外部JSON文件加载数据
+// ===================================================================
+let BUOYS, CHANNEL_DATA, SHIPS;
+
+// 内嵌数据（直接双击打开 file:// 协议时使用）
+    const buoysData = await buoysRes.json();
+    const channelData = await channelRes.json();
+    const shipsData = await shipsRes.json();
+
+    BUOYS = buoysData.buoys.map(b => ({ name: b.name, lng: b.lng, lat: b.lat }));
+    CHANNEL_DATA = {
+      south_channel_lower: channelData.south_channel_lower,
+      south_channel_upper: channelData.south_channel_upper,
+      jiuduansha_warning: channelData.jiuduansha_warning,
+      yuanyuansha_warning: channelData.yuanyuansha_warning,
+      south_branch: channelData.south_branch
+    };
+    SHIPS = shipsData.ships;
+  } catch (err) {
+    // C12: 改进错误处理 — 向用户显示明确提示而非静默回退
+    console.error('[数据加载] 外部JSON加载失败:', err);
+    const mapEl = document.getElementById('map');
+    if (mapEl) {
+      mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:let(--c-text-muted,#7aa8cc);font-size:14px;">' +
+        '<div style="font-size:24px;">⚠</div>' +
+        '<div>数据加载失败，请通过本地服务器访问（运行 启动Demo.bat）</div>' +
+        '<div style="font-size:12px;opacity:0.6;">' + err.message + '</div>' +
+        '</div>';
+    }
+    return;
+  }
+  window.SHIPS = SHIPS;
+
+  // 将前2艘船的类型改为施工船，确保有施工船数据
+  // ships.json 中已正确设置 type 字段，无需代码覆盖
+
+  initApp();
+}
+loadData();
+
+// ===================================================================
+// [优化] 航段多边形构建: 将北边界点序列和南边界点序列组合为闭合多边形
+// 航段多边形构建
+// ===================================================================
+function polyCenter(coords) {
+  let sumLat = 0, sumLng = 0;
+  coords.forEach(c => { sumLat += c[0]; sumLng += c[1]; });
+  return [sumLat / coords.length, sumLng / coords.length];
+}
+
+function buildSegmentPoly(northPts, southPts) {
+  return [...northPts, ...southPts.slice().reverse()];
+}
+
+const SEGMENTS = [];
+
+function hashStr(str) { let h = 0; for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; } return Math.abs(h); }
+
+// ===================================================================
+// MAP + 底图图层
+// ===================================================================
+const map = L.map('map', { center: [31.15, 121.95], zoom: 10, zoomControl: true, attributionControl: false });
+// [优化] Leaflet 地图初始化: 中心点设为长江口南槽航道(31.15, 121.95)，缩放级别10，隐藏归属信息
+
+// 底图图层定义
+const baseLayers = {
+  amap: L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+    maxZoom: 18, subdomains: ['1','2','3','4']
+  }),
+  tianditu: L.tileLayer('https://t{s}.tianditu.gov.cn/DataServer?T=vec_w&x={x}&y={y}&l={z}&tk=' + (window.APP_CONFIG && window.APP_CONFIG.TIANDITU_TOKEN || 'PLACEHOLDER') + '', {
+    maxZoom: 18, subdomains: ['0','1','2','3','4','5','6','7']
+  }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 18
+  })
+};
+
+// 天地图标注层（卫星底图时叠加）
+const tiandituLabel = L.tileLayer('https://t{s}.tianditu.gov.cn/DataServer?T=cva_w&x={x}&y={y}&l={z}&tk=' + (window.APP_CONFIG && window.APP_CONFIG.TIANDITU_TOKEN || 'PLACEHOLDER') + '', {
+  maxZoom: 18, subdomains: ['0','1','2','3','4','5','6','7']
+});
+
+let currentBaseMap = 'amap';
+baseLayers.amap.addTo(map);
+
+// 底图切换函数 — C4: 合并原猴子补丁逻辑（3D模式下切回2D）
+function switchBaseMap(type) {
+  // C4: 原 _origSwitchBaseMap 补丁逻辑合并至此
+  if (typeof is3DMode !== 'undefined' && is3DMode) switchTo2D();
+  if (type === currentBaseMap) return;
+  map.removeLayer(baseLayers[currentBaseMap]);
+  if (currentBaseMap === 'satellite') map.removeLayer(tiandituLabel);
+  baseLayers[type].addTo(map);
+  if (type === 'satellite') tiandituLabel.addTo(map);
+  currentBaseMap = type;
+  // C6: 改用 data-action 选择器，不再依赖 onclick 属性
+  document.querySelectorAll('.map-layer-btn').forEach(btn => btn.classList.remove('active'));
+  const activeBtn = document.querySelector(`.map-layer-btn[data-map="${type}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+}
+
+// 图层组
+let boundaryLayer = L.layerGroup().addTo(map);
+let segmentLayer = L.layerGroup().addTo(map);
+let buoyLayer = L.layerGroup().addTo(map);
+let shipLayer = L.layerGroup().addTo(map);
+let predictLayer = L.layerGroup();
+
+// ===================================================================
+// 侧边栏收起/展开
+// ===================================================================
+function togglePanel(side) {
+// [优化] 面板收起/展开: 280px<->40px 动画切换，收起时标题竖排显示
+  if (side === 'left') {
+    const panel = document.getElementById('leftPanel');
+    panel.classList.toggle('collapsed');
+    const btn = panel.querySelector('.panel-toggle');
+    btn.textContent = panel.classList.contains('collapsed') ? '▶' : '◀';
+  } else {
+    const panel = document.getElementById('rightPanel');
+    panel.classList.toggle('collapsed');
+    const btn = panel.querySelector('.panel-toggle');
+    btn.textContent = panel.classList.contains('collapsed') ? '◀' : '▶';
+  }
+  // Leaflet地图需要在容器尺寸变化后刷新
+  setTimeout(() => map.invalidateSize(), 350);
+}
+
+// ===================================================================
+// 图例折叠/展开
+// ===================================================================
+function toggleLegend() {
+  const legend = document.getElementById('legend');
+  legend.classList.toggle('collapsed');
+  legend.classList.toggle('expanded');
+}
+
+// ===================================================================
+// HELPERS
+// ===================================================================
+function getRiskColor(risk) { return risk >= 0.7 ? '#ff4444' : risk >= 0.4 ? '#ffaa00' : '#44ff44'; }
+function getRiskLabel(risk) { return risk >= 0.7 ? '高风险' : risk >= 0.4 ? '中风险' : '低风险'; }
+function getRiskClass(risk) { return risk >= 0.7 ? 'high' : risk >= 0.4 ? 'medium' : 'low'; }
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function calcSegmentRisk(segId, ships) {
+// [优化] 风险计算模型重构: 7个风险因子(施工船密度/通航船密度/高风险比例/环境因素/航道复杂度/施工区域/会遇风险)加权求和
+  const segShips = ships.filter(s => s.segment === segId);
+  const constShips = segShips.filter(s => s.type === 'construction').length;
+  const cargoShips = segShips.filter(s => s.type === 'cargo').length;
+  const highRiskShips = segShips.filter(s => s.risk === 'high').length;
+  const totalShips = segShips.length;
+
+  // 基础风险因子
+  const f1 = Math.min(constShips / 12, 1) * 0.20;  // 施工船密度
+  const f2 = Math.min(cargoShips / 8, 1) * 0.15;   // 通航船密度
+  const f3 = totalShips > 0 ? (highRiskShips / totalShips) * 0.20 : 0; // 高风险比例
+
+  // BUG-3: 环境因素动态计算（基于环境面板数据）
+  const wind = _envState ? _envState.wind : 4;
+// [优化] 环境因素从固定值改为动态计算(基于 _envState 实时数据)，风力>=6级/能见度<1000m/流速>=2kn时风险升高
+  const visibility = _envState ? _envState.visibility : 3500;
+  const currentSpeed = _envState ? _envState.current : 1.2;
+  // 风力≥6级、能见度<1000m、流速≥2kn时风险升高
+  let envRisk = 0.08; // 基础值
+  if (wind >= 6) envRisk += 0.04;
+  if (visibility < 1000) envRisk += 0.03;
+  if (currentSpeed >= 2.0) envRisk += 0.03;
+  const f4 = Math.min(envRisk, 0.15); // 环境因素
+
+  // 航道复杂度动态计算（基于航段多边形尺寸）
+  let f5 = 0.08; // 基础值
+// [优化] 航道复杂度基于航段多边形尺寸动态计算: 小面积航段(如狭窄水道)复杂度更高，警戒区固定为最高
+  const segBounds = SEGMENTS[segId - 1];
+  if (segBounds) {
+    const coords = segBounds.coords;
+    if (coords && coords.length > 0) {
+      // 用多边形面积估算航段大小
+      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+      coords.forEach(c => {
+        if (c[0] < minLat) minLat = c[0];
+        if (c[0] > maxLat) maxLat = c[0];
+        if (c[1] < minLng) minLng = c[1];
+        if (c[1] > maxLng) maxLng = c[1];
+      });
+      const latSpan = maxLat - minLat;
+      const lngSpan = maxLng - minLng;
+      if (latSpan < 0.01 && lngSpan < 0.01) f5 += 0.04; // 小面积航段复杂度高
+      else if (latSpan > 0.04 || lngSpan > 0.04) f5 -= 0.02; // 大面积航段复杂度低
+    }
+  }
+  // 警戒区（segId 15-16）复杂度更高
+  if (segId >= 15) f5 = 0.15;
+  f5 = Math.min(f5, 0.12); // 航道复杂度，上限0.12
+
+  // 南槽上段（segId 7-11）施工区域附加风险
+  const f6 = (segId >= 7 && segId <= 11) ? 0.05 : 0;
+
+  // 会遇风险因子：检测同航段内相向而行的船舶对
+  let f_encounter = 0;
+// [优化] 新增会遇风险因子: 检测同航段内相向而行船舶对的最近距离，<1海里时按比例增加风险值(最高0.20)
+  if (totalShips >= 2) {
+    const inbound = segShips.filter(s => s.direction === '进港');
+    const outbound = segShips.filter(s => s.direction === '出港');
+    if (inbound.length > 0 && outbound.length > 0) {
+      // 有相向而行的船舶，计算最小距离
+      let minDist = Infinity;
+      for (const i of inbound) {
+        for (const o of outbound) {
+          const d = haversineKm(i._lat || 0, i._lng || 0, o._lat || 0, o._lng || 0);
+          if (d < minDist) minDist = d;
+        }
+      }
+      // 距离越小风险越高，<0.5nm时风险最大
+      const nm = minDist / 1.852;
+      if (nm < 1.0) {
+        f_encounter = (1.0 - nm) * 0.20; // 最大0.20
+      }
+    }
+  }
+
+  return Math.min(f1 + f2 + f3 + f4 + f5 + f6 + f_encounter, 1);
+}
+
+// ===================================================================
+// RISK CALCULATION
+// ===================================================================
+let currentRisks = {}, predictRisks = {}, predictedShips = [];
+
+// 全局航段定义（供轨迹预测使用）
+let _segDefs = [];
+let _getBoundaryArrays = null;
+
+function getSegCenterline(segId) {
+  const sd = _segDefs.find(d => d.id === segId);
+  if (!sd || sd.type === 'warning' || !_getBoundaryArrays) return null;
+  const [nArr, sArr] = _getBoundaryArrays(segId);
+  const nPts = nArr.slice(sd.northSlice[0], sd.northSlice[1]);
+  const sPts = sArr.slice(sd.southSlice[0], sd.southSlice[1]);
+  const cl = [];
+  const len = Math.min(nPts.length, sPts.length);
+  for (let i = 0; i < len; i++) {
+    cl.push([(nPts[i][0] + sPts[i][0]) / 2, (nPts[i][1] + sPts[i][1]) / 2]);
+  }
+  return cl;
+}
+
+function pointOnCenterline(segId, ratio, offsetRatio) {
+  const cl = getSegCenterline(segId);
+  if (!cl || cl.length < 2) {
+    const seg = SEGMENTS[segId - 1];
+    return seg ? seg.center : [31.15, 121.95];
+  }
+  const idx = Math.min(Math.floor(ratio * (cl.length - 1)), cl.length - 2);
+  const localRatio = (ratio * (cl.length - 1)) - idx;
+  const p1 = cl[idx], p2 = cl[idx + 1];
+  const lat = p1[0] + (p2[0] - p1[0]) * localRatio;
+  const lng = p1[1] + (p2[1] - p1[1]) * localRatio;
+  const dx = p2[1] - p1[1], dy = p2[0] - p1[0];
+  const segLen = Math.sqrt(dx*dx + dy*dy);
+  if (segLen === 0) return [lat, lng];
+  const nx = -dy / segLen, ny = dx / segLen;
+  const offsetDeg = offsetRatio * 0.003;
+  return [lat + nx * offsetDeg, lng + ny * offsetDeg];
+}
+
+function predictShipPosition(ship) {
+  // 沿航道中心线预测：根据航向判断前进方向
+  // 进港船沿中心线向前（ratio增大），出港船向后（ratio减小）
+  const cl = getSegCenterline(ship.segment);
+  if (!cl || cl.length < 2) {
+    // 回退到简单直线预测
+    const lat = ship._lat !== undefined ? ship._lat : (ship.lat || 31.15);
+    const lng = ship._lng !== undefined ? ship._lng : (ship.lng || 121.95);
+    const distDeg = ship.speed * 0.5 / 60;
+    const rad = ship.heading * Math.PI / 180;
+    const dlat = distDeg * Math.cos(rad);
+    const dlng = -distDeg * Math.sin(rad) / Math.cos(lat * Math.PI / 180);
+    return { lat: lat + dlat, lng: lng + dlng };
+  }
+
+  // 计算半小时前进距离（度）
+  const distNm = ship.speed * 0.5; // 海里
+  const distKm = distNm * 1.852;
+  const distDeg = distKm / 111.0; // 约等于纬度度数
+
+  // 沿中心线累计距离，找到新位置
+  const direction = ship.direction === '进港' ? 1 : -1;
+  let currentRatio = ship._centerlineRatio !== undefined ? ship._centerlineRatio : 0.5;
+
+  // 根据中心线总长度估算ratio变化
+  let totalLen = 0;
+  for (let i = 0; i < cl.length - 1; i++) {
+    const dlat = cl[i+1][0] - cl[i][0];
+    const dlng = cl[i+1][1] - cl[i][1];
+    totalLen += Math.sqrt(dlat*dlat + dlng*dlng);
+  }
+
+  if (totalLen > 0) {
+    const deltaRatio = (distDeg / totalLen) * direction;
+    currentRatio = Math.max(0.05, Math.min(0.95, currentRatio + deltaRatio));
+  }
+
+  // 保持横向偏移不变
+  const offsetRatio = ship.direction === '进港' ? 0.6 : -0.6;
+  return pointOnCenterline(ship.segment, currentRatio, offsetRatio);
+}
+
+function findNearestSegment(lat, lng) {
+  let minDist = Infinity, nearestId = 1;
+  SEGMENTS.forEach(seg => {
+    const dist = Math.sqrt((lat - seg.center[0])**2 + (lng - seg.center[1])**2);
+    if (dist < minDist) { minDist = dist; nearestId = seg.id; }
+  });
+  return nearestId;
+}
+
+function calculateAllRisks() {
+// [优化] calculateAllRisks: 同时计算当前风险和预测风险(半小时后)，预测基于船舶沿航道中心线的位置推算
+  // 当前风险（使用实际位置）
+  SEGMENTS.forEach(seg => { currentRisks[seg.id] = calcSegmentRisk(seg.id, SHIPS); });
+
+  // 预测位置
+  predictedShips = SHIPS.map(s => {
+    const pos = predictShipPosition(s);
+    const newSegId = findNearestSegment(pos.lat, pos.lng);
+    return {
+      ...s,
+      _predLat: pos.lat !== undefined ? pos.lat : (s._lat !== undefined ? s._lat : 31.15),
+      _predLng: pos.lng !== undefined ? pos.lng : (s._lng !== undefined ? s._lng : 121.95),
+      _origSegment: s.segment,
+      _predSegment: newSegId !== undefined ? newSegId : s.segment,
+      _segmentChanged: newSegId !== undefined ? newSegId !== s.segment : false
+    };
+  });
+
+  // 预测风险（使用预测位置，会遇检测基于预测位置）
+  const predShipsForRisk = predictedShips.map(s => ({
+    ...s,
+    segment: s._predSegment,
+    _lat: s._predLat,  // 替换为预测位置用于会遇计算
+    _lng: s._predLng
+  }));
+  SEGMENTS.forEach(seg => { predictRisks[seg.id] = calcSegmentRisk(seg.id, predShipsForRisk); });
+
+  // C4: 原 _origCA 猴子补丁逻辑合并至此 — 风险计算后自动刷新统计栏
+  updateStatsBar();
+}
+
+// ===================================================================
+// RENDER - 官方边界线、中线
+// ===================================================================
+function renderBoundaries() {
+// [优化] 航道边界渲染: 颜色编码(北界绿/南界橙/中线黄/南支紫)，绑定 tooltip 显示名称
+  boundaryLayer.clearLayers();
+
+  L.polyline(CHANNEL_DATA.south_channel_lower.north_boundary.map(c => [c[0], c[1]]), {
+    color: '#00ff88', weight: 2.5, opacity: 0.7
+  }).addTo(boundaryLayer).bindTooltip('南槽下段北边界', {className:'info-tooltip'});
+
+  L.polyline(CHANNEL_DATA.south_channel_lower.south_boundary.map(c => [c[0], c[1]]), {
+    color: '#ff8800', weight: 2.5, opacity: 0.7
+  }).addTo(boundaryLayer).bindTooltip('南槽下段南边界', {className:'info-tooltip'});
+
+  L.polyline(CHANNEL_DATA.south_channel_upper.north_boundary.map(c => [c[0], c[1]]), {
+    color: '#00ff88', weight: 2.5, opacity: 0.7
+  }).addTo(boundaryLayer).bindTooltip('南槽上段北边界', {className:'info-tooltip'});
+
+  L.polyline(CHANNEL_DATA.south_channel_upper.south_boundary.map(c => [c[0], c[1]]), {
+    color: '#ff8800', weight: 2.5, opacity: 0.7
+  }).addTo(boundaryLayer).bindTooltip('南槽上段南边界', {className:'info-tooltip'});
+
+  L.polyline(CHANNEL_DATA.south_channel_lower.centerline.map(c => [c[0], c[1]]), {
+    color: '#ffff00', weight: 1.5, opacity: 0.5, dashArray: '8,6'
+  }).addTo(boundaryLayer).bindTooltip('南槽下段中线', {className:'info-tooltip'});
+
+  L.polyline(CHANNEL_DATA.south_channel_upper.centerline.map(c => [c[0], c[1]]), {
+    color: '#ffff00', weight: 1.5, opacity: 0.5, dashArray: '8,6'
+  }).addTo(boundaryLayer).bindTooltip('南槽上段中线', {className:'info-tooltip'});
+
+  L.polyline(CHANNEL_DATA.south_branch.north_boundary.map(c => [c[0], c[1]]), {
+    color: '#aa88ff', weight: 2, opacity: 0.6, dashArray: '6,4'
+  }).addTo(boundaryLayer).bindTooltip('南支航道北边界', {className:'info-tooltip'});
+
+  L.polyline(CHANNEL_DATA.south_branch.south_boundary.map(c => [c[0], c[1]]), {
+    color: '#aa88ff', weight: 2, opacity: 0.6, dashArray: '6,4'
+  }).addTo(boundaryLayer).bindTooltip('南支航道南边界', {className:'info-tooltip'});
+
+  if (CHANNEL_DATA.south_branch.centerline) {
+    L.polyline(CHANNEL_DATA.south_branch.centerline.map(c => [c[0], c[1]]), {
+      color: '#c4b5fd', weight: 1.5, opacity: 0.5, dashArray: '3,5'
+    }).addTo(boundaryLayer).bindTooltip('南支航道中线', {className:'info-tooltip'});
+  }
+}
+
+// ===================================================================
+// RENDER - 航段多边形
+// ===================================================================
+function renderSegments(risks, isPredict) {
+// [优化] 航段多边形渲染: 按风险着色(红/橙/绿) + 半透明填充，预测模式使用虚线+更低透明度区分
+  segmentLayer.clearLayers();
+  SEGMENTS.forEach(seg => {
+    const risk = risks[seg.id];
+    const color = getRiskColor(risk);
+    const isWarning = seg.type === 'warning';
+    const poly = L.polygon(seg.coords.map(c => [c[0], c[1]]), {
+      color: isWarning ? '#ff6600' : color,
+      weight: isPredict ? 1.5 : 2.5,
+      opacity: isPredict ? 0.5 : 0.9,
+      fillColor: isWarning ? '#ff6600' : color,
+      fillOpacity: isPredict ? 0.15 : 0.30,
+      dashArray: isPredict ? '5,5' : isWarning ? '8,4' : null
+    }).addTo(segmentLayer);
+    const segShips = SHIPS.filter(s => s.segment === seg.id);
+    poly.bindTooltip(`<b>${seg.name}</b>${isWarning ? ' [警戒区]' : ''}<br/>风险值: ${risk.toFixed(2)} | ${getRiskLabel(risk)}<br/>施工船: ${segShips.filter(s=>s.type==='construction').length} | 通航船: ${segShips.filter(s=>s.type==='cargo').length}`, {className:'info-tooltip'});
+    if (!isPredict) {
+      L.marker(seg.center, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="color:${isWarning ? '#ff6600' : '#ffffff'};font-size:12px;font-weight:700;text-shadow:0 0 6px rgba(0,0,0,0.9),0 0 12px rgba(0,0,0,0.6),0 1px 2px rgba(0,0,0,0.8);white-space:nowrap;pointer-events:none;text-align:center;transform:translate(-50%,-50%);">${seg.name}</div>`,
+          iconSize: [0, 0], iconAnchor: [0, 0]
+        }),
+        interactive: false
+      }).addTo(segmentLayer);
+    }
+  });
+}
+
+// ===================================================================
+// RENDER - 航标
+// ===================================================================
+function renderBuoys() {
+// [优化] 航标渲染: 按名称规则颜色编码(S奇数=红/偶数=绿, A=紫, 其他=橙)，绑定经纬度tooltip
+  buoyLayer.clearLayers();
+  BUOYS.forEach(b => {
+    const isNorth = /^S\d+$/.test(b.name) && parseInt(b.name.slice(1)) % 2 === 1;
+    const isSouth = /^S\d+$/.test(b.name) && parseInt(b.name.slice(1)) % 2 === 0;
+    const isA = b.name.startsWith('A');
+    const isSpecial = !isNorth && !isSouth && !isA;
+    let fillColor = '#00d4ff', radius = 3;
+    if (isNorth) { fillColor = '#ff6b6b'; radius = 4; }
+    else if (isSouth) { fillColor = '#4ecdc4'; radius = 4; }
+    else if (isA) { fillColor = '#a78bfa'; radius = 3; }
+    else if (isSpecial) { fillColor = '#ff6600'; radius = 5; }
+    L.circleMarker([b.lat, b.lng], { radius, fillColor, fillOpacity: 0.9, color: fillColor, weight: 1 }).addTo(buoyLayer)
+      .bindTooltip(`<b>${b.name}</b><br/>${b.lat.toFixed(4)}N, ${b.lng.toFixed(4)}E`, {className:'info-tooltip'});
+    L.marker([b.lat, b.lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="color:${fillColor};font-size:9px;font-weight:600;text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);white-space:nowrap;pointer-events:none;transform:translate(8px,-50%);">${b.name}</div>`,
+        iconSize: [0, 0], iconAnchor: [0, 0]
+      }),
+      interactive: false
+    }).addTo(buoyLayer);
+  });
+}
+
+// ===================================================================
+// RENDER - 船舶（三角形图标 + 航向矢量线，矢量线长度与速度成正比）
+// ===================================================================
+function renderShips(ships, isPredict) {
+// [优化] 船舶图标重构: 使用 SVG 等腰三角形(30度顶角) + 航向矢量虚线(长度与速度成正比)，高风险船闪烁
+  shipLayer.clearLayers();
+  ships.forEach(s => {
+    const lat = isPredict ? s._predLat : s._lat;
+    const lng = isPredict ? s._predLng : s._lng;
+    const currentSegId = isPredict ? s._predSegment : s.segment;
+    const riskColor = s.risk === 'high' ? '#ff4444' : s.risk === 'medium' ? '#ffaa00' : '#44ff44';
+    const isConst = s.type === 'construction';
+    const color = isConst ? riskColor : '#66ccff';
+
+    // 矢量线长度与速度成正比（速度越大线越长）
+    // 速度范围约4-12节，线长范围20-60像素
+    const vecLen = Math.round(15 + s.speed * 4);
+
+    // 航向角转CSS旋转（CSS 0度=右，heading 0=北，需要转换）
+    // heading: 0=北, 90=东, 180=南, 270=西
+    // CSS rotate: 0=右(东), 90=下(南), 180=左(西), 270=上(北)
+    // 转换: cssAngle = 90 - heading
+    const cssAngle = 90 - s.heading;
+
+    // 等腰三角形：顶角30°，底角75°
+    // 顶角顶点在上方（指向航向），底边在下方
+    // 三角形高度（顶角到底边）
+    const triH = isConst ? 16 : 14;
+    // 底边半宽 = 高度 * tan(15°) ≈ 高度 * 0.268
+    const triW = Math.round(triH * 0.268);
+    // 30°顶角顶点坐标（也是矢量线起点）
+    const apexX = triW;
+    const apexY = 0;
+    // 底边左下角
+    const baseLeftX = 0;
+    const baseLeftY = triH;
+    // 底边右下角
+    const baseRightX = triW * 2;
+    const baseRightY = triH;
+
+    // 容器大小：三角形 + 矢量线
+    const containerW = triW * 2;
+    const containerH = triH + vecLen;
+    // 船舶位置 = 30°顶角顶点（apex）
+    // iconAnchor对准顶角顶点
+
+    // 构建三角形 + 航向矢量线的HTML
+    // 三角形使用clip-path精确控制30°顶角
+    const html = `
+      <div style="position:relative;width:${containerW}px;height:${containerH}px;transform:rotate(${cssAngle}deg);transform-origin:${apexX}px ${apexY}px;">
+        <!-- 航向矢量线：从30°顶角顶点向航向方向（上方）延伸，虚线 -->
+        <div style="position:absolute;left:${apexX-1}px;top:${apexY - vecLen}px;width:2px;height:${vecLen}px;background:${color};opacity:0.9;border-left:2px dashed ${color};background:none;"></div>
+        <!-- 三角形船舶图标：30°顶角等腰三角形，顶角顶点在(apexX, apexY) -->
+        <div style="position:absolute;left:0;top:0;width:${containerW}px;height:${triH}px;">
+          <svg width="${containerW}" height="${triH}" style="overflow:visible;">
+            <polygon points="${apexX},${apexY} ${baseLeftX},${baseLeftY} ${baseRightX},${baseRightY}"
+              fill="${color}" stroke="${color}" stroke-width="1"
+              filter="drop-shadow(0 0 2px ${color})"
+              ${s.risk==='high'&&!isPredict?'class="risk-blink-poly"':''}/>
+          </svg>
+        </div>
+      </div>
+    `;
+
+    const icon = L.divIcon({
+      className: '',
+      html: html,
+      iconSize: [containerW, containerH],
+      iconAnchor: [apexX, apexY]
+    });
+
+    const marker = L.marker([lat, lng], {icon}).addTo(shipLayer);
+    const seg = SEGMENTS[currentSegId - 1];
+    let extra = '';
+    if (isPredict && s._segmentChanged) extra = `<br/><span style="color:#00d4ff">航段变化: ${SEGMENTS[s._origSegment-1].name} → ${seg.name}</span>`;
+    // 构建详细信息tooltip
+    let detailLines = `<b>${s.name}</b>`;
+    detailLines += `<br/>${s.subType} | ${isConst?'施工船':'通航船'}`;
+    detailLines += `<br/>安检风险: <span style="color:${riskColor}">${s.risk==='high'?'高风险':s.risk==='medium'?'中风险':'低风险'}</span>`;
+    if (s.direction) detailLines += `<br/>航向: ${s.direction}`;
+    detailLines += `<br/>航速: ${s.speed}kn | 航向: ${s.heading}°`;
+    if (s.nextPort) detailLines += `<br/>下一港: ${s.nextPort}`;
+    if (s.length) detailLines += `<br/>船长: ${s.length}m × 船宽: ${s.width}m`;
+    if (s.tonnage) detailLines += `<br/>总吨: ${s.tonnage}`;
+    if (s.mmsi) detailLines += `<br/>MMSI: ${s.mmsi}`;
+    detailLines += `<br/>${seg.name}${extra}`;
+    marker.bindTooltip(detailLines, {className:'info-tooltip'});
+    marker.on('click', function(e) {
+      L.DomEvent.stopPropagation(e);
+      _enterShipMotionView(s);
+    });
+  });
+}
+
+// ===================================================================
+// RENDER - 预测轨迹
+// ===================================================================
+function renderPredictionLines() {
+// [优化] 新增预测轨迹线: 虚线连接当前位置与预测位置，变红色标识航段变化，额外标记会遇预警点
+  predictLayer.clearLayers();
+
+  // 绘制预测轨迹线
+  predictedShips.forEach(s => {
+    L.polyline([[s._lat, s._lng], [s._predLat, s._predLng]], {
+      color: s._segmentChanged ? '#ffaa00' : '#00d4ff',
+      weight: s._segmentChanged ? 2.5 : 1.5,
+      opacity: 0.5,
+      dashArray: '6,4'
+    }).addTo(predictLayer);
+    const color = s.risk === 'high' ? '#ff4444' : s.risk === 'medium' ? '#ffaa00' : '#44ff44';
+    L.circleMarker([s._predLat, s._predLng], {
+      radius: 5, fillColor: color, fillOpacity: 0.25, color: color, weight: 2, dashArray: '3,3'
+    }).addTo(predictLayer);
+  });
+
+  // 检测并标记会遇点
+  const encounterPairs = [];
+  for (let i = 0; i < predictedShips.length; i++) {
+    for (let j = i + 1; j < predictedShips.length; j++) {
+      const s1 = predictedShips[i], s2 = predictedShips[j];
+      // 只检测相向而行且在同一或相邻航段的船舶
+      if (s1.direction !== s2.direction) {
+        const d = haversineKm(s1._predLat, s1._predLng, s2._predLat, s2._predLng);
+        const nm = d / 1.852;
+        if (nm < 1.5) { // 1.5海里内标记会遇
+          encounterPairs.push({
+            s1, s2,
+            dist: d,
+            nm: nm,
+            midLat: (s1._predLat + s2._predLat) / 2,
+            midLng: (s1._predLng + s2._predLng) / 2
+          });
+        }
+      }
+    }
+  }
+
+  // 绘制会遇标记
+  encounterPairs.forEach(pair => {
+    const isHighRisk = pair.nm < 0.5;
+    const color = isHighRisk ? '#ff0000' : '#ff6600';
+    // 会遇圈
+    L.circle([pair.midLat, pair.midLng], {
+      radius: pair.dist * 500, // 米
+      color: color,
+      weight: 2,
+      fillColor: color,
+      fillOpacity: 0.08,
+      dashArray: '4,4'
+    }).addTo(predictLayer);
+    // 会遇点标记
+    L.marker([pair.midLat, pair.midLng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="color:${color};font-size:11px;font-weight:700;text-shadow:0 0 4px rgba(0,0,0,0.9);white-space:nowrap;pointer-events:none;text-align:center;transform:translate(-50%,-50%);">
+          ⚠ ${pair.nm.toFixed(2)}nm
+        </div>`,
+        iconSize: [0, 0], iconAnchor: [0, 0]
+      }),
+      interactive: false
+    }).addTo(predictLayer);
+  });
+}
+
+// ===================================================================
+// RENDER - 面板（船舶列表含新字段）
+// ===================================================================
+function renderShipList(filter) {
+// [优化] 船舶列表: 显示船名/类型/航向/航速/下一港/尺寸/风险标签，点击定位到地图
+  const list = document.getElementById('shipList');
+  list.innerHTML = '';
+  let filtered = SHIPS;
+  if (filter === 'construction') filtered = SHIPS.filter(s => s.type === 'construction');
+  else if (filter === 'cargo') filtered = SHIPS.filter(s => s.type === 'cargo');
+  else if (filter === 'high') filtered = SHIPS.filter(s => s.risk === 'high');
+  filtered.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'ship-item';
+    // 主行：船名、类型、风险标签
+    let html = `<div class="ship-dot ${s.risk}"></div><div style="flex:1;min-width:0;"><div class="ship-name">${s.name}</div>`;
+    html += `<div class="ship-type">${s.subType} | ${s.type==='construction'?'施工船':'通航船'}`;
+    if (s.direction) html += ` | ${s.direction}`;
+    html += `</div>`;
+    // 详情行：航速、航向、下一港、船长船宽
+    html += `<div class="ship-detail-row">`;
+    html += `<span>${s.speed}kn</span>`;
+    html += `<span>${s.heading}°</span>`;
+    if (s.nextPort) html += `<span>→${s.nextPort}</span>`;
+    if (s.length) html += `<span>${s.length}×${s.width}m</span>`;
+    html += `</div></div>`;
+    html += `<span class="ship-risk-tag ${s.risk}">${s.risk==='high'?'高':s.risk==='medium'?'中':'低'}</span>`;
+    div.innerHTML = html;
+    div.onclick = () => {
+      document.querySelectorAll('.ship-item').forEach(el => el.classList.remove('selected'));
+      div.classList.add('selected');
+      const seg = SEGMENTS[s.segment - 1];
+      if (seg) map.setView([s._lat, s._lng], 14);
+    };
+    list.appendChild(div);
+  });
+}
+
+function renderRiskList(risks, isPredict) {
+// [优化] 航段风险列表重构: 航段标题行(序号+名称+风险值+等级标签) + 进度条 + 三列统计卡片 + 会遇预警横条 + 预测对比
+  const list = document.getElementById('riskList');
+  list.innerHTML = '';
+  const shipsForCount = isPredict ? predictedShips : SHIPS;
+
+  // 预计算会遇信息
+  let encounterInfo = {};
+  if (isPredict) {
+    for (let i = 0; i < predictedShips.length; i++) {
+      for (let j = i + 1; j < predictedShips.length; j++) {
+        const s1 = predictedShips[i], s2 = predictedShips[j];
+        if (s1.direction !== s2.direction) {
+          const d = haversineKm(s1._predLat, s1._predLng, s2._predLat, s2._predLng);
+          const nm = d / 1.852;
+          if (nm < 1.5) {
+            const segId = s1._predSegment;
+            if (!encounterInfo[segId]) encounterInfo[segId] = [];
+            encounterInfo[segId].push({ s1: s1.name, s2: s2.name, nm: nm });
+          }
+        }
+      }
+    }
+  }
+
+  SEGMENTS.forEach(seg => {
+    const risk = risks[seg.id];
+    const cls = getRiskClass(risk);
+    const segShips = shipsForCount.filter(s => (isPredict ? s._predSegment : s.segment) === seg.id);
+    const constShips = segShips.filter(s => s.type === 'construction').length;
+    const cargoShips = segShips.filter(s => s.type === 'cargo').length;
+    const highShips = segShips.filter(s => s.risk === 'high').length;
+    const movedShips = isPredict ? segShips.filter(s => s._segmentChanged).length : 0;
+    const encounters = encounterInfo[seg.id] || [];
+
+    const div = document.createElement('div');
+    div.className = 'risk-item';
+// [优化] 航段项入场动画延迟: 按序号递增(每项40ms)，形成依次滑入效果
+    div.style.animationDelay = `${seg.id * 40}ms`;
+
+    const predictRiskVal = isPredict ? currentRisks[seg.id] : predictRisks[seg.id];
+    const predictCls = getRiskClass(predictRiskVal);
+    const riskPercent = Math.min(Math.round(risk * 100), 100);
+
+    // 会遇预警（独立横条）
+    let encounterBlock = '';
+    if (isPredict && encounters.length > 0) {
+      const minNm = Math.min(...encounters.map(e => e.nm));
+      const isHighEnc = minNm < 0.5;
+      encounterBlock = `<div class="risk-encounter${isHighEnc?' high-encounter':''}"><span class="risk-encounter-icon">${isHighEnc?'🔴':'🟡'}</span><span class="risk-encounter-text">会遇预警: ${encounters.length}对 (最近${minNm.toFixed(2)}nm)</span></div>`;
+    }
+
+    // 移入信息
+    let movedBlock = isPredict && movedShips > 0 ? `<div class="risk-moved-info">↳ 新增移入: ${movedShips}艘</div>` : '';
+
+    div.innerHTML = `
+      <div class="risk-header">
+        <div class="risk-header-left">
+          <span class="risk-seg-index">${seg.id}</span>
+          <span class="risk-name">${seg.name}</span>
+        </div>
+        <div class="risk-header-right">
+          <span class="risk-score-big ${seg.type==='warning'?'warning':cls}">${risk.toFixed(2)}</span>
+          <span class="risk-badge ${seg.type==='warning'?'warning':cls}">${seg.type==='warning'?'警戒区':getRiskLabel(risk)}</span>
+        </div>
+      </div>
+      <div class="risk-progress"><div class="risk-progress-bar ${seg.type==='warning'?'warning':cls}" style="width:${riskPercent}%"></div></div>
+      <div class="risk-stats-row">
+        <div class="risk-stat-card"><div class="risk-stat-num const-num">${constShips}</div><div class="risk-stat-label">施工船</div></div>
+        <div class="risk-stat-card"><div class="risk-stat-num cargo-num">${cargoShips}</div><div class="risk-stat-label">通航船</div></div>
+        <div class="risk-stat-card"><div class="risk-stat-num high-num">${highShips}</div><div class="risk-stat-label">高风险</div></div>
+      </div>
+      ${movedBlock}${encounterBlock}
+      <div class="risk-predict">
+        <div class="risk-predict-row">
+          <span><span class="risk-predict-arrow">${isPredict?'◀':'▶'}</span><span class="risk-predict-label">${isPredict ? '当前风险' : '半小时后预测'}</span></span>
+          <span class="risk-predict-value" style="color:${getRiskColor(predictRiskVal)}">${predictRiskVal.toFixed(3)} ${getRiskLabel(predictRiskVal)}</span>
+        </div>
+      </div>`;
+    div.onclick = () => { document.querySelectorAll('.risk-item').forEach(el => el.classList.remove('selected')); div.classList.add('selected'); if (is3DMode) { loadSegment3D(seg.id); } else { map.setView(seg.center, 12); } };
+    list.appendChild(div);
+  });
+}
+
+// ===================================================================
+// VIEW SWITCH
+// ===================================================================
+let currentView = 'current';
+// [优化] 视图切换: 实时/预测两种模式，同步更新航段多边形/船舶图标/面板列表/预测轨迹
+function switchView(view) {
+  currentView = view;
+  document.getElementById('btnCurrent').classList.toggle('active', view === 'current');
+  document.getElementById('btnPredict').classList.toggle('active', view === 'predict');
+  if (view === 'current') {
+    map.removeLayer(predictLayer);
+    renderSegments(currentRisks, false);
+    renderShips(SHIPS, false);
+    renderRiskList(currentRisks, false);
+  } else {
+    predictLayer.addTo(map);
+    renderPredictionLines();
+    renderSegments(predictRisks, true);
+    renderShips(predictedShips, true);
+    renderRiskList(predictRisks, true);
+  }
+}
+
+let currentFilter = 'all';
+function filterShips(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-pressed', 'false');
+  });
+  if (btn) {
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+  }
+  renderShipList(filter);
+}
+
+function updateTime() { document.getElementById('currentTime').textContent = new Date().toLocaleString('zh-CN'); }
+setInterval(updateTime, 1000); updateTime();
+
+// 窗口大小变化时刷新地图尺寸
+window.addEventListener('resize', () => {
+  if (!is3DMode) {
+    setTimeout(() => map.invalidateSize(), 100);
+  }
+});
+
+// ===================================================================
+// INIT
+// ===================================================================
+function initApp() {
+  const lowerNorth = CHANNEL_DATA.south_channel_lower.north_boundary;
+  const lowerSouth = CHANNEL_DATA.south_channel_lower.south_boundary;
+  const upperNorth = CHANNEL_DATA.south_channel_upper.north_boundary;
+  const upperSouth = CHANNEL_DATA.south_channel_upper.south_boundary;
+  const branchNorth = CHANNEL_DATA.south_branch.north_boundary;
+  const branchSouth = CHANNEL_DATA.south_branch.south_boundary;
+
+  const segDefs = [
+    {id:1, name:"南槽下1", type:"channel", northSlice:[0,5], southSlice:[0,5]},
+    {id:2, name:"南槽下2", type:"channel", northSlice:[4,9], southSlice:[4,9]},
+    {id:3, name:"南槽下3", type:"channel", northSlice:[8,12], southSlice:[8,12]},
+    {id:4, name:"南槽下4", type:"channel", northSlice:[11,15], southSlice:[11,15]},
+    {id:5, name:"南槽下5", type:"channel", northSlice:[14,18], southSlice:[14,18]},
+    {id:6, name:"南槽下6", type:"channel", northSlice:[17,20], southSlice:[17,21]},
+    {id:7, name:"南槽上1", type:"channel", northSlice:[0,6], southSlice:[0,6]},
+    {id:8, name:"南槽上2", type:"channel", northSlice:[5,11], southSlice:[5,11]},
+    {id:9, name:"南槽上3", type:"channel", northSlice:[10,16], southSlice:[10,16]},
+    {id:10, name:"南槽上4", type:"channel", northSlice:[15,20], southSlice:[15,20]},
+    {id:11, name:"南槽上5", type:"channel", northSlice:[19,24], southSlice:[19,24]},
+    {id:12, name:"南支1", type:"channel", northSlice:[0,5], southSlice:[0,5]},
+    {id:13, name:"南支2", type:"channel", northSlice:[4,8], southSlice:[4,9]},
+    {id:14, name:"南支3", type:"channel", northSlice:[7,10], southSlice:[8,12]},
+    {id:15, name:"九段沙警戒区", type:"warning"},
+    {id:16, name:"圆圆沙警戒区", type:"warning"}
+  ];
+
+  function getBoundaryArrays(segId) {
+    if (segId >= 1 && segId <= 6) return [lowerNorth, lowerSouth];
+    if (segId >= 7 && segId <= 11) return [upperNorth, upperSouth];
+    if (segId >= 12 && segId <= 14) return [branchNorth, branchSouth];
+    return [null, null];
+  }
+
+  segDefs.forEach(sd => {
+    if (sd.type === 'warning') {
+      const warningCoords = sd.id === 15 ? CHANNEL_DATA.jiuduansha_warning : CHANNEL_DATA.yuanyuansha_warning;
+      SEGMENTS.push({
+        id: sd.id, name: sd.name, type: 'warning',
+        coords: warningCoords,
+        center: polyCenter(warningCoords)
+      });
+    } else {
+      const [nArr, sArr] = getBoundaryArrays(sd.id);
+      const nPts = nArr.slice(sd.northSlice[0], sd.northSlice[1]);
+      const sPts = sArr.slice(sd.southSlice[0], sd.southSlice[1]);
+      const poly = buildSegmentPoly(nPts, sPts);
+      SEGMENTS.push({
+        id: sd.id, name: sd.name, type: 'channel',
+        coords: poly,
+        center: polyCenter(poly)
+      });
+    }
+  });
+
+  // 设置全局引用供3D模块和轨迹预测使用
+  _segDefs = segDefs;
+  _getBoundaryArrays = getBoundaryArrays;
+  window.SEGMENTS = SEGMENTS;
+  window._segDefs = _segDefs;
+  window.SHIPS = SHIPS;
+
+  // ===================================================================
+  // 船舶位置分配：进港船位于航道北侧，出港船位于航道南侧
+  // ===================================================================
+  SHIPS.forEach(s => {
+    const h = hashStr(s.name);
+    // 沿中心线位置：随机分布在航段中间区域
+    const ratio = 0.3 + ((h % 1000) / 1000) * 0.4; // 0.3~0.7，避免太靠近边界
+    // 横向偏移：进港船北侧（正偏移），出港船南侧（负偏移）
+    const offsetRatio = s.direction === '进港' ? 0.5 + ((h % 500) / 500) * 0.3 : -0.5 - ((h % 500) / 500) * 0.3;
+    const pos = pointOnCenterline(s.segment, ratio, offsetRatio);
+    s._lat = pos[0];
+    s._lng = pos[1];
+    s._centerlineRatio = ratio; // 保存用于轨迹预测
+
+    // BUG-7: 补充吃水数据（按船长分级）
+    if (s.draft === undefined) {
+      const len = s.length || 80;
+      const h2 = hashStr(s.name + 'draft');
+      const rand = ((h2 % 10000) / 10000);
+      if (len > 100) s.draft = 4 + rand * 4;
+      else if (len > 60) s.draft = 3 + rand * 3;
+      else s.draft = 2 + rand * 2;
+    }
+  });
+
+  calculateAllRisks();
+
+  renderBoundaries();
+  renderBuoys();
+  renderSegments(currentRisks, false);
+  renderShips(SHIPS, false);
+  renderShipList('all');
+  renderRiskList(currentRisks, false);
+
+  // E5: 数据加载完成，隐藏骨架屏
+  hideLoadingScreen();
+
+  // 启动30秒自动刷新
+  startAutoRefresh();
+}
+
+// ===================================================================
+// 30秒自动刷新机制（BUG-4/5修复）
+// ===================================================================
+let _refreshTimer = null;
+let _isAutoRefreshPaused = false;
+
+function startAutoRefresh() {
+  if (_refreshTimer) clearInterval(_refreshTimer);
+  _refreshTimer = setInterval(() => {
+    if (!_isAutoRefreshPaused) {
+      doRefresh();
+    }
+  }, 30000);
+}
+
+function toggleAutoRefresh() {
+  _isAutoRefreshPaused = !_isAutoRefreshPaused;
+  const btn = document.getElementById('refreshBtn');
+  const status = document.getElementById('refreshStatus');
+  if (_isAutoRefreshPaused) {
+    btn.textContent = '▶ 运行';
+    status.textContent = '刷新频率: 已暂停';
+  } else {
+    btn.textContent = '⏸ 暂停';
+    status.textContent = '刷新频率: 30s';
+  }
+}
+
+function doRefresh() {
+  // 重新计算船舶位置（随机微调模拟移动）
+  const now = Date.now();
+  SHIPS.forEach(s => {
+    // 按航向方向移动一小段距离（约0.5-2秒的移动量）
+    const moveDist = s.speed * 0.005; // 约0.5节秒
+    const rad = s.heading * Math.PI / 180;
+    const lat = s._lat !== undefined ? s._lat : (s.lat || 31.15);
+    const lng = s._lng !== undefined ? s._lng : (s.lng || 121.95);
+    s._lat = lat + moveDist * Math.cos(rad) / 111;
+    s._lng = lng - moveDist * Math.sin(rad) / (111 * Math.cos(lat * Math.PI / 180));
+  });
+
+  // 更新环境数据（模拟变化）
+  updateEnvData();
+
+  // 重新计算风险
+  calculateAllRisks();
+
+  // 判断当前视图（使用全局 currentView 变量，而非不可靠的 DOM 选择器）
+  const isPredict = currentView === 'predict';
+  // [优化] BUG-2修复: 使用全局 currentView 变量判断视图模式(原代码用不可靠的 DOM 选择器，isPredict 永远为 false)
+
+  // 重新渲染
+  renderSegments(currentRisks, isPredict);
+  renderShips(isPredict ? predictedShips : SHIPS, isPredict);
+  renderShipList(currentFilter || 'all');
+  renderRiskList(currentRisks, isPredict);
+
+  // 刷新时间戳
+  document.getElementById('currentTime').textContent = new Date().toLocaleString('zh-CN', { hour12: false });
+  // [优化] BUG-1修复: 使用 getElementById 获取 refreshStatus 元素(原代码使用未定义变量导致 ReferenceError)
+  const refreshStatus = document.getElementById('refreshStatus');
+  if (refreshStatus) {
+    refreshStatus.textContent = `刷新频率: 30s | 上次: ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`;
+  }
+}
+
+// 环境数据模拟更新
+let _envState = { wind: 4, visibility: 3500, current: 1.2 };
+function updateEnvData() {
+  // 微调环境数据
+  _envState.wind = Math.max(1, Math.min(8, _envState.wind + (Math.random() - 0.5) * 1));
+  _envState.visibility = Math.max(500, Math.min(8000, _envState.visibility + (Math.random() - 0.5) * 500));
+  _envState.current = Math.max(0.3, Math.min(3.0, _envState.current + (Math.random() - 0.5) * 0.3));
+
+  // 取整避免显示过多小数位
+// [优化] 环境数据取整处理: 风力保留1位小数、能见度取整、流速保留1位小数，避免显示过多小数位
+  _envState.wind = Math.round(_envState.wind * 10) / 10;
+  _envState.visibility = Math.round(_envState.visibility);
+  _envState.current = Math.round(_envState.current * 10) / 10;
+
+  // 更新UI
+  const envPanel = document.querySelector('.env-panel');
+  if (envPanel) {
+    const rows = envPanel.querySelectorAll('.env-row');
+    if (rows.length >= 4) {
+      rows[0].querySelector('.env-value').textContent = `${_envState.wind}级 SE`;
+      rows[1].querySelector('.env-value').textContent = `${_envState.visibility}m`;
+      rows[2].querySelector('.env-value').textContent = `中浚高潮前1.5h`;
+      // [优化] BUG-3修复: 补充 rows[2] 潮汐行的更新(原代码遗漏导致潮汐信息不随刷新变化)
+      rows[3].querySelector('.env-value').textContent = `${_envState.current}kn`;
+    }
+  }
+
+  // 更新风险面板中的环境因子说明
+  const riskItems = document.querySelectorAll('.risk-item');
+  riskItems.forEach(item => {
+    if (item.dataset && item.dataset.enabled !== undefined) {
+      const riskVal = parseFloat(item.dataset.risk);
+      const envFactor = _envState.wind >= 6 || _envState.visibility < 1000 ? 0.015 : 0.008;
+      const newRisk = Math.min(1, riskVal + envFactor);
+      item.dataset.risk = newRisk;
+    }
+  });
+}
+
+// ===================================================================
+// 3D航道视图切换（全景态势视图 + Three.js详细视图）
+// ===================================================================
+let channel3D = null;
+let channelPanorama = null;
+let is3DMode = false;
+let isPanoramaMode = false; // 当前是否在全景模式
+// 记住3D模式前的侧边栏状态
+let _savedPanelState = { left: false, right: false };
+
+async function switchTo3D(segId) {
+// [优化] 3D视图切换: 自动收起侧边栏 -> 等待动画(350ms) -> 隐藏地图 -> 进入全景/Three.js视图
+  // 记住当前侧边栏状态
+  _savedPanelState.left = document.getElementById('leftPanel').classList.contains('collapsed');
+  _savedPanelState.right = document.getElementById('rightPanel').classList.contains('collapsed');
+
+  // 自动收起两侧面板，给3D视图腾出空间
+  const leftPanel = document.getElementById('leftPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  if (!leftPanel.classList.contains('collapsed')) {
+    leftPanel.classList.add('collapsed');
+    leftPanel.querySelector('.panel-toggle').textContent = '▶';
+  }
+  if (!rightPanel.classList.contains('collapsed')) {
+    rightPanel.classList.add('collapsed');
+    rightPanel.querySelector('.panel-toggle').textContent = '◀';
+  }
+
+  // 等待侧边栏收起动画完成
+  await new Promise(r => setTimeout(r, 350));
+
+  // 隐藏2D地图
+  document.getElementById('map').style.display = 'none';
+  is3DMode = true;
+
+  if (segId) {
+    // 指定了航段，直接进入Three.js详细视图
+    await _enterThreeJSView(segId);
+  } else {
+    // 默认显示全景态势视图（伪3D）
+    await _enterPanoramaView();
+  }
+
+  // 更新底图按钮状态
+  document.querySelectorAll('.map-layer-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.map-layer-btn[data-action="switch-3d"]').classList.add('active');
+}
+
+// ======================== 全景态势视图 ========================
+
+async function _enterPanoramaView() {
+  // 隐藏Three.js容器
+  document.getElementById('channel3d-container').classList.remove('active');
+  // 隐藏航段选择器
+  const selector = document.getElementById('segment3d-selector');
+  if (selector) selector.style.display = 'none';
+
+  // 先显示容器（确保Canvas能获取正确的尺寸）
+  document.getElementById('channel-panorama-container').style.display = 'block';
+  isPanoramaMode = true;
+
+  // 等待一帧确保容器布局完成后再初始化/resize
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  // [优化] BUG-4修复: 全景视图初始化前等待两帧(requestAnimationFrame x2)，确保侧边栏收起动画完成、容器尺寸稳定
+
+  // 初始化全景视图模块
+  if (!channelPanorama) {
+    try {
+      const { ChannelPanorama } = await import('./js/channel-panorama.js');
+      channelPanorama = new ChannelPanorama('channel-panorama-container');
+      channelPanorama.init();
+
+      // 设置回调
+      channelPanorama.onSegmentClick = (segId) => {
+        // 点击航段 -> 进入航段详情模式（全景内部）
+      };
+      channelPanorama.onBack = () => {
+        // 返回全景（从详情模式回到全景模式）- 由模块内部处理
+      };
+      channelPanorama.onEnter3D = (segId) => {
+        // 从全景详情进入Three.js详细视图
+        _enterThreeJSView(segId);
+      };
+    } catch (err) {
+      console.error('[全景模块] 加载失败，请通过 HTTP 服务器访问:', err);
+      alert('全景模块需要HTTP服务器支持。请在项目文件夹运行:\npython -m http.server 8888\n然后访问 http://localhost:8888/demo.html');
+      return;
+    }
+  } else {
+    // 已初始化过，触发resize以适应新尺寸
+    channelPanorama._handleResize();
+  }
+
+  // 更新数据
+  channelPanorama.setData(CHANNEL_DATA, SEGMENTS, SHIPS, currentRisks);
+  channelPanorama.show();
+}
+
+function _exitPanoramaView() {
+  if (channelPanorama) {
+    channelPanorama.hide();
+  }
+  document.getElementById('channel-panorama-container').style.display = 'none';
+  isPanoramaMode = false;
+}
+
+// ======================== Three.js 详细视图 ========================
+
+async function _enterThreeJSView(segId) {
+  // 退出全景视图
+  _exitPanoramaView();
+
+  // 初始化3D模块
+  if (!channel3D) {
+    try {
+      const { Channel3D } = await import('./js/channel3d.js');
+      channel3D = new Channel3D('channel3d-container');
+      channel3D.init();
+    } catch (err) {
+      console.error('[3D模块] 加载失败，请通过 HTTP 服务器访问:', err);
+      alert('3D模块需要HTTP服务器支持。请在项目文件夹运行:\npython -m http.server 8888\n然后访问 http://localhost:8888/demo.html');
+      return;
+    }
+  }
+
+  // 构建所有船舶数据(含吃水)
+  const allShipsWithDraft = SHIPS.map(s => ({
+    ...s,
+    lat: s._lat,
+    lng: s._lng
+  }));
+
+  // 加载指定航段的精确3D视图
+  loadSegment3D(segId);
+
+  channel3D.show();
+  document.getElementById('channel3d-container').classList.add('active');
+
+  // 等两帧确保容器布局完成后再resize
+  requestAnimationFrame(() => {
+  // [优化] BUG-5修复: Three.js resize 前等待两帧，确保 CSS 布局计算完成后再调整 WebGL 渲染尺寸
+    requestAnimationFrame(() => {
+      channel3D.resize();
+    });
+  });
+
+  // 显示航段选择器
+  buildSegment3DSelector();
+
+  // 隐藏操作提示
+  setTimeout(() => {
+    const hint = document.getElementById('threejsHint');
+    if (hint) hint.classList.add('fade');
+  }, 3000);
+}
+
+// ======================== 返回2D / 返回全景 ========================
+
+function switchTo2D() {
+  // 退出全景视图
+  _exitPanoramaView();
+
+  // 退出Three.js视图
+  if (channel3D) {
+  // [优化] BUG-6修复: 退出3D视图时调用 channel3D.dispose() 释放 WebGL 资源，防止内存泄漏
+    channel3D.hide();
+    // BUG-6: WebGL资源释放
+    channel3D.dispose();
+    channel3D = null;
+    document.getElementById('channel3d-container').classList.remove('active');
+  }
+  document.getElementById('map').style.display = '';
+  is3DMode = false;
+
+  // 隐藏航段选择器
+  const selector = document.getElementById('segment3d-selector');
+  if (selector) selector.style.display = 'none';
+
+  // 恢复侧边栏到3D模式前的状态
+  const leftPanel = document.getElementById('leftPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  if (!_savedPanelState.left) {
+    leftPanel.classList.remove('collapsed');
+    leftPanel.querySelector('.panel-toggle').textContent = '◀';
+  }
+  if (!_savedPanelState.right) {
+    rightPanel.classList.remove('collapsed');
+    rightPanel.querySelector('.panel-toggle').textContent = '▶';
+  }
+
+  document.querySelectorAll('.map-layer-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.map-layer-btn[data-map="amap"]').classList.add('active');
+  setTimeout(() => map.invalidateSize(), 400);
+}
+
+// ======================== 船舶运动态势视图 ========================
+
+async function _enterShipMotionView(shipData) {
+  // 退出全景视图
+  _exitPanoramaView();
+
+  // 记住当前侧边栏状态（和 switchTo3D 一样的逻辑）
+  _savedPanelState.left = document.getElementById('leftPanel').classList.contains('collapsed');
+  _savedPanelState.right = document.getElementById('rightPanel').classList.contains('collapsed');
+
+  // 自动收起两侧面板
+  const leftPanel = document.getElementById('leftPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  if (!leftPanel.classList.contains('collapsed')) {
+    leftPanel.classList.add('collapsed');
+    leftPanel.querySelector('.panel-toggle').textContent = '▶';
+  }
+  if (!rightPanel.classList.contains('collapsed')) {
+    rightPanel.classList.add('collapsed');
+    rightPanel.querySelector('.panel-toggle').textContent = '◀';
+  }
+
+  // 等待侧边栏收起动画完成
+  await new Promise(r => setTimeout(r, 350));
+
+  // 隐藏2D地图
+  document.getElementById('map').style.display = 'none';
+
+  // 隐藏全景视图容器
+  document.getElementById('channel-panorama-container').style.display = 'none';
+
+  // 如果 channel3D 未初始化则初始化（和 _enterThreeJSView 类似的逻辑）
+  if (!channel3D) {
+    try {
+      const { Channel3D } = await import('./js/channel3d.js');
+      channel3D = new Channel3D('channel3d-container');
+      channel3D.init();
+    } catch (err) {
+      console.error('[3D模块] 加载失败，请通过 HTTP 服务器访问:', err);
+      alert('3D模块需要HTTP服务器支持。请在项目文件夹运行:\npython -m http.server 8888\n然后访问 http://localhost:8888/demo.html');
+      return;
+    }
+  }
+
+  // 构建船舶运动态势 options
+  const options = {
+    ship: shipData,
+    channelData: CHANNEL_DATA,
+    segId: shipData.segment,
+    hydrology: { depth: 8 + Math.random()*4, currentSpeed: 1.5 + Math.random()*2, currentDir: Math.floor(Math.random()*360), windSpeed: 4 + Math.random()*6, windDir: Math.floor(Math.random()*360) },
+    drafts: { fl: 6, fc: 6.2, fr: 6.1, al: 6.3, ac: 6.5, ar: 6.4 },
+    lateralOffset: 0
+  };
+
+  // 调用船舶运动态势构建
+  channel3D.buildShipMotionSituation(options);
+
+  // 显示 channel3d 容器
+  channel3D.show();
+  document.getElementById('channel3d-container').classList.add('active');
+
+  // 等两帧确保容器布局完成后再resize
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      channel3D.resize();
+    });
+  });
+
+  // 显示"返回地图"按钮
+  const backBtn = document.createElement('button');
+  backBtn.id = '_shipMotionBackBtn';
+  backBtn.textContent = '◀ 返回地图';
+  backBtn.style.cssText = 'position:absolute;top:70px;left:15px;z-index:1002;background:rgba(8,26,50,0.9);border:1px solid #00d4ff;color:#00d4ff;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;backdrop-filter:blur(8px);transition:all 0.3s;';
+  backBtn.onmouseenter = () => { backBtn.style.background='rgba(0,212,255,0.15)'; backBtn.style.boxShadow='0 0 15px rgba(0,212,255,0.3)'; };
+  backBtn.onmouseleave = () => { backBtn.style.background='rgba(8,26,50,0.9)'; backBtn.style.boxShadow='none'; };
+  backBtn.onclick = () => _exitShipMotionView();
+  document.body.appendChild(backBtn);
+
+  // 设置状态
+  is3DMode = true;
+  isPanoramaMode = false;
+}
+
+function _exitShipMotionView() {
+  // 如果 channel3D 存在，调用退出船舶运动态势
+  if (channel3D) {
+    channel3D.exitShipMotion();
+  }
+
+  // 显示2D地图
+  document.getElementById('map').style.display = '';
+
+  // 隐藏 channel3d 容器
+  document.getElementById('channel3d-container').classList.remove('active');
+  if (channel3D) {
+    channel3D.hide();
+    channel3D.dispose();
+    channel3D = null;
+  }
+
+  // 移除返回按钮
+  const backBtn = document.getElementById('_shipMotionBackBtn');
+  if (backBtn) backBtn.remove();
+
+  // 恢复侧边栏
+  const leftPanel = document.getElementById('leftPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  if (!_savedPanelState.left) {
+    leftPanel.classList.remove('collapsed');
+    leftPanel.querySelector('.panel-toggle').textContent = '◀';
+  }
+  if (!_savedPanelState.right) {
+    rightPanel.classList.remove('collapsed');
+    rightPanel.querySelector('.panel-toggle').textContent = '▶';
+  }
+
+  // 恢复状态
+  is3DMode = false;
+  isPanoramaMode = false;
+
+  // 恢复底图按钮状态
+  document.querySelectorAll('.map-layer-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelector('.map-layer-btn[data-map="amap"]').classList.add('active');
+
+  // 刷新地图尺寸
+  setTimeout(() => map.invalidateSize(), 400);
+}
+
+
+function loadSegment3D(segId) {
+  if (!channel3D) return;
+  const seg = SEGMENTS[segId - 1];
+  if (!seg || seg.type === 'warning') return;
+
+  // 构建带吃水数据的船舶列表 - 使用统一的calculateDraft函数
+  const allShipsWithDraft = SHIPS.map(s => ({
+    ...s,
+    lat: s._lat,
+    lng: s._lng
+    // draft由channel3d.js中的calculateDraft统一计算
+  }));
+
+  // 使用侧面剖视图展示航段
+  channel3D.buildSegmentCrossSection(segId, {
+    lower: CHANNEL_DATA.south_channel_lower,
+    upper: CHANNEL_DATA.south_channel_upper,
+    branch: CHANNEL_DATA.south_branch,
+    jiuduansha_warning: CHANNEL_DATA.jiuduansha_warning,
+    yuanyuansha_warning: CHANNEL_DATA.yuanyuansha_warning
+  }, allShipsWithDraft);
+
+  // 更新信息面板
+  const segShips = SHIPS.filter(s => s.segment === segId);
+  document.getElementById('threejsSegName').textContent = seg.name + ' - 横截面剖视图';
+  document.getElementById('threejsSegDetail').innerHTML =
+    `船舶: ${segShips.length}艘 | 视角: 侧面剖面<br/>` +
+    `<span style="color:#6a8aa8;font-size:10px;">（鼠标左键旋转 | 滚轮缩放 | 右键平移）</span>`;
+}
+
+// 构建3D模式下的航段选择器
+function buildSegment3DSelector() {
+  const selector = document.getElementById('segment3d-selector');
+  const list = document.getElementById('segment3d-list');
+  if (!selector || !list) return;
+
+  selector.style.display = 'block';
+  list.innerHTML = '';
+
+  // 添加"全航道"选项
+  const allItem = document.createElement('div');
+  allItem.style.cssText = 'padding:4px 8px;margin:2px 0;border-radius:3px;cursor:pointer;color:#00d4ff;font-weight:600;transition:background 0.2s;';
+  allItem.textContent = '◀ 返回全航道';
+  allItem.onmouseover = () => allItem.style.background = 'rgba(0,212,255,0.15)';
+  allItem.onmouseout = () => allItem.style.background = 'transparent';
+  allItem.onclick = () => {
+    // 退出剖视图模式
+    if (channel3D.exitCrossSection) channel3D.exitCrossSection();
+
+    // 构建带吃水数据的船舶列表 - 使用统一的calculateDraft函数
+    const allShipsWithDraft = SHIPS.map(s => ({
+      ...s, lat: s._lat, lng: s._lng
+      // draft由channel3d.js中的calculateDraft统一计算
+    }));
+    channel3D.buildFullChannel({
+      lower: CHANNEL_DATA.south_channel_lower,
+      upper: CHANNEL_DATA.south_channel_upper,
+      branch: CHANNEL_DATA.south_branch,
+      jiuduansha_warning: CHANNEL_DATA.jiuduansha_warning,
+      yuanyuansha_warning: CHANNEL_DATA.yuanyuansha_warning
+    }, allShipsWithDraft, {
+      simplified: true,
+      onSegmentClick: (clickedSegId) => {
+        loadSegment3D(clickedSegId);
+        const list = document.getElementById('segment3d-list');
+        if (list) {
+          list.querySelectorAll('div').forEach(d => d.style.borderLeft = 'none');
+        }
+      }
+    });
+    document.getElementById('threejsSegName').textContent = '长江口南槽航道 - 全航道3D视图';
+    document.getElementById('threejsSegDetail').innerHTML =
+      `船舶: ${SHIPS.length}艘 | 航段: 14个 | 吃水深度: 模拟数据<br/>` +
+      `<span style="color:#6a8aa8;font-size:10px;">（水深/吃水数据接口已预留，可导入真实数据）</span>`;
+    // 更新选中状态
+    list.querySelectorAll('div').forEach(d => d.style.borderLeft = 'none');
+    allItem.style.borderLeft = '2px solid #00d4ff';
+  };
+  list.appendChild(allItem);
+
+  // 分组添加航段
+  const groups = [
+    { label: '南槽下段', ids: [1,2,3,4,5,6] },
+    { label: '南槽上段', ids: [7,8,9,10,11] },
+    { label: '南支航道', ids: [12,13,14] }
+  ];
+
+  groups.forEach(group => {
+    const groupLabel = document.createElement('div');
+    groupLabel.style.cssText = 'color:#6a8aa8;font-size:10px;margin-top:6px;margin-bottom:2px;padding-left:4px;';
+    groupLabel.textContent = group.label;
+    list.appendChild(groupLabel);
+
+    group.ids.forEach(id => {
+      const seg = SEGMENTS[id - 1];
+      if (!seg) return;
+      const segShips = SHIPS.filter(s => s.segment === id);
+      const risk = currentRisks[id] || 0;
+      const riskColor = risk >= 0.7 ? '#ff4444' : risk >= 0.4 ? '#ffaa00' : '#44ff44';
+
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:3px 8px;margin:1px 0;border-radius:3px;cursor:pointer;color:#c0d8f0;transition:background 0.2s;border-left:2px solid transparent;';
+      item.innerHTML = `<span style="color:${riskColor};">●</span> ${seg.name} <span style="color:#6a8aa8;font-size:10px;">(${segShips.length}船)</span>`;
+      item.onmouseover = () => item.style.background = 'rgba(0,212,255,0.1)';
+      item.onmouseout = () => item.style.background = 'transparent';
+      item.onclick = () => {
+        loadSegment3D(id);
+        // 更新选中状态
+        list.querySelectorAll('div').forEach(d => d.style.borderLeft = 'none');
+        item.style.borderLeft = '2px solid #00d4ff';
+      };
+      list.appendChild(item);
+    });
+  });
+
+  // 警戒区分组
+  const warningGroup = document.createElement('div');
+  warningGroup.style.cssText = 'color:#6a8aa8;font-size:10px;margin-top:6px;margin-bottom:2px;padding-left:4px;';
+  warningGroup.textContent = '警戒水域';
+  list.appendChild(warningGroup);
+
+  [{id:15, name:'九段沙警戒区', color:'#ff4444'}, {id:16, name:'圆圆沙警戒区', color:'#ff8800'}].forEach(w => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:3px 8px;margin:1px 0;border-radius:3px;cursor:pointer;color:#c0d8f0;transition:background 0.2s;border-left:2px solid transparent;';
+    item.innerHTML = `<span style="color:${w.color};">\u25b2</span> ${w.name}`;
+    item.onmouseover = () => item.style.background = 'rgba(255,68,68,0.1)';
+    item.onmouseout = () => item.style.background = 'transparent';
+    item.onclick = () => {
+      // 更新选中状态
+      list.querySelectorAll('div').forEach(d => d.style.borderLeft = 'none');
+      item.style.borderLeft = `2px solid ${w.color}`;
+      // 警戒区无剖视图，更新信息面板提示
+      document.getElementById('threejsSegName').textContent = w.name;
+      document.getElementById('threejsSegDetail').innerHTML =
+        `<span style="color:#ff6600;">警戒区暂不支持3D剖视图</span><br/>` +
+        `<span style="color:#6a8aa8;font-size:10px;">（警戒区为开阔水域，无固定航道边界）</span>`;
+    };
+    list.appendChild(item);
+  });
+}
+
+
+
+// 修改航段点击，支持3D模式下加载航段
+const _origRiskItemClick = null;
+// 在renderRiskList中航段点击时检查3D模式
+
+
+// C4: updateStatsBar 直接定义，不再通过猴子补丁 hook
+function updateStatsBar() {
+  if (!SHIPS || SHIPS.length === 0) return;
+  const el = id => document.getElementById(id);
+  const total = el('statTotalShips');
+  const high = el('statHighRisk');
+  const const_ = el('statConstruction');
+  const avg = el('statAvgRisk');
+  if (total) total.textContent = SHIPS.length;
+  if (high) high.textContent = SHIPS.filter(s => s.risk === 'high').length;
+  if (const_) const_.textContent = SHIPS.filter(s => s.type === 'construction').length;
+  if (avg && Object.keys(currentRisks).length > 0) {
+    const vals = Object.values(currentRisks);
+    const sum = vals.reduce((a, b) => a + b, 0);
+    avg.textContent = (sum / vals.length).toFixed(2);
+  }
+}
+
+</script>
+</body>
+</html>
