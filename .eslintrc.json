@@ -1,0 +1,43 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "extends": "eslint:recommended",
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "plugins": ["html"],
+  "rules": {
+    "no-var": "error",
+    "prefer-const": "warn",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-console": "off",
+    "no-undef": "warn",
+    "no-redeclare": "error",
+    "no-shadow": "warn",
+    "eqeqeq": ["warn", "always"],
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "prefer-arrow-callback": "warn",
+    "prefer-template": "warn",
+    "no-useless-escape": "warn"
+  },
+  "globals": {
+    "L": "readonly",
+    "THREE": "readonly",
+    "window": "readonly",
+    "document": "readonly",
+    "console": "readonly",
+    "fetch": "readonly",
+    "localStorage": "readonly",
+    "setTimeout": "readonly",
+    "setInterval": "readonly",
+    "clearTimeout": "readonly",
+    "clearInterval": "readonly",
+    "requestAnimationFrame": "readonly",
+    "cancelAnimationFrame": "readonly",
+    "import": "readonly"
+  }
+}
