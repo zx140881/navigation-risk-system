@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local config (C2: 含 API Key，不提交)
+config.local.js
+
+# Build output
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Temp files
+*.tmp
+*.bak
