@@ -1,0 +1,23 @@
+{
+  "name": "navigation-risk-system",
+  "version": "6.3.0",
+  "description": "多系统融合的航道水域航行动态智能风险评估系统——面向重大水工工程施工水域的应用",
+  "main": "demo.html",
+  "scripts": {
+    "dev": "python -m http.server 8888 --bind 0.0.0.0",
+    "start": "python -m http.server 8888 --bind 0.0.0.0",
+    "lint": "eslint demo.html js/ --ext .js,.html",
+    "lint:fix": "eslint demo.html js/ --ext .js,.html --fix",
+    "format": "prettier --write \"demo.html\" \"js/**/*.js\" \"config.js\"",
+    "format:check": "prettier --check \"demo.html\" \"js/**/*.js\" \"config.js\""
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-plugin-html": "^8.0.0",
+    "prettier": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
